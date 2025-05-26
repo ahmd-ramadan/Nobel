@@ -1,0 +1,1 @@
+export const MongoDBObjectId = /^[a-f\d]{24}$/i;
