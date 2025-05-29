@@ -1,4 +1,4 @@
-import { ApiError, FORBIDDEN, INTERNAL_SERVER_ERROR, logger, MAGIC_NUMBERS, NOT_FOUND, UNAUTHORIZED } from "../utils";
+import { ApiError, FORBIDDEN, INTERNAL_SERVER_ERROR, MAGIC_NUMBERS, UNAUTHORIZED } from "../utils";
 // import { HashingService } from "./hashing.service";
 import { userService } from "./user.service";
 import { tokenService } from "./token.service";
