@@ -32,6 +32,11 @@ export const isAuthunticated = asyncHandler(
                 new ApiError('User not found, mybe had deleted by admin', UNAUTHORIZED)
             )
         }
+        if (!user.isActive) {
+            return next(
+                new ApiError('User logged out, can not make action', UNAUTHORIZED)
+            )
+        }
 
         req.user = { userId: decoded.userId as string, role: decoded.role };
         next();

@@ -6,8 +6,10 @@ export interface IUserModel extends IDBModel {
     name: string;
     username: string;
     role: UserRolesEnum;
-    password?: string;
-    isBlocked?: string;
+    password: string;
+    isBlocked: boolean;
+    isActive: Boolean;
+
 }
 
 export interface IUser extends IUserModel {}

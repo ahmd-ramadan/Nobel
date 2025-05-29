@@ -1,27 +1,28 @@
 import { ApiError, FORBIDDEN, INTERNAL_SERVER_ERROR, logger, MAGIC_NUMBERS, NOT_FOUND, UNAUTHORIZED } from "../utils";
-import { HashingService } from "./hashing.service";
+// import { HashingService } from "./hashing.service";
 import { userService } from "./user.service";
 import { tokenService } from "./token.service";
 import { JwtService } from "./jwt.service";
 import { IUser } from "../interfaces";
 import { ValidationErrorMessages } from '../constants/error.messages';
+import { userRepository } from "../repositories";
 
 class AuthService {
 
     async login({ username, password }: { username: string, password: string }) {
         try {
-            const user = await userService.findUserByUserName(username);
+            let user = await userService.findUserByUserName(username);
     
             if (!user || !user.password) {
                 throw new ApiError(ValidationErrorMessages.INVALID_CREDENTIALS, UNAUTHORIZED);
             }
     
-            const passwordMatches = await HashingService.compare(
-                password,
-                user?.password,
-            );
+            // const passwordMatches = await HashingService.compare(
+            //     password,
+            //     user?.password,
+            // );
     
-            if (!passwordMatches) {
+            if (password !== user.password) {
                 throw new ApiError(ValidationErrorMessages.INVALID_CREDENTIALS, UNAUTHORIZED);
             }
     
@@ -33,7 +34,8 @@ class AuthService {
             }
     
             const token = (await this.generateAndStoreTokens(user)).refreshToken;
-    
+            user = await userRepository.updateOne({ _id: user._id }, { isActive: true });
+            
             return { data: user, token };
         } catch (error) {
             if(error instanceof ApiError) {
@@ -43,7 +45,7 @@ class AuthService {
         }
     }
 
-    async logout({ userId: string, refreshToken }: { userId: string; refreshToken: string }) {
+    async logout({ userId, refreshToken }: { userId: string; refreshToken: string }) {
         try {
             const storedToken =
                 await tokenService.tokenExists(refreshToken);
@@ -52,7 +54,8 @@ class AuthService {
                 throw new ApiError(ValidationErrorMessages.UNAUTHORIZED_ACCESS, UNAUTHORIZED);
             }
         
-            await tokenService.deleteOne({ token: refreshToken });
+            await tokenService.deleteOne({ userId, token: refreshToken });
+            await userRepository.updateOne({ _id: userId }, { isActive: false });
         } catch (error) {
             if(error instanceof ApiError) {
                 throw error

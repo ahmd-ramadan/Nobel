@@ -2,9 +2,7 @@ import { DeleteUserTypes, UserRolesEnum } from "../enums";
 import { ICreateUserQuery, IUserModel } from "../interfaces";
 import { userRepository } from "../repositories";
 import { ApiError, BAD_REQUEST, CONFLICT, INTERNAL_SERVER_ERROR, NOT_FOUND } from "../utils";
-import { authService } from "./auth.service";
-import { HashingService } from "./hashing.service";
-import { localStorageService } from "./localStorage.service";
+// import { HashingService } from "./hashing.service";
 import { ValidationErrorMessages } from '../constants/error.messages';
 import { tokenService } from "./token.service";
 
@@ -47,7 +45,8 @@ class UserService {
             newData.username = username;
         }
         if (password) {
-            newData.password = await HashingService.hash(password);
+            // newData.password = await HashingService.hash(password);
+            newData.password = password;
         }
         if (name) newData.name = name;
 
@@ -57,14 +56,15 @@ class UserService {
     async updatePassword({ userId, oldPassword, newPassword }: { userId: string, oldPassword: string, newPassword: string }) {
         const { password } = await this.isUserExist(userId);
 
-        const isMatched = await HashingService.compare(oldPassword, password as string);
-        if (!isMatched) {
+        // const isMatched = await HashingService.compare(oldPassword, password as string);
+        // if (!isMatched) {
+        if(password !== oldPassword) {
             throw new ApiError(ValidationErrorMessages.INCORRECT_OLD_PASSWORD, CONFLICT)
         }
 
-        const hashedPassword = await HashingService.hash(newPassword);
+        // const hashedPassword = await HashingService.hash(newPassword);
 
-        return await this.updateOne({ userId, data: { password: hashedPassword } })
+        return await this.updateOne({ userId, data: { password } })
     } 
     
     async findUserById(userId: string) {
@@ -80,9 +80,9 @@ class UserService {
                 throw new ApiError(ValidationErrorMessages.USER_ALREADY_EXISTS, CONFLICT);
             }
     
-            const hashedPassword = await HashingService.hash(password);
+            // const hashedPassword = await HashingService.hash(password);
             
-            const userCredentials = { role: UserRolesEnum.USER, username, name, password: hashedPassword };
+            const userCredentials = { role: UserRolesEnum.USER, username, name, password };
 
             const addedUser = await userService.createNewUser(userCredentials);
             
@@ -111,7 +111,8 @@ class UserService {
                 newData.name = name;
             }
             if (password) {
-                newData.password = await HashingService.hash(password)
+                // newData.password = await HashingService.hash(password)
+                newData.password = password
             }
             return await this.updateOne({ userId, data: newData });
         } catch (error) {
@@ -124,7 +125,7 @@ class UserService {
 
     async getAllUsers() {
         try {
-            return await this.userDataSource.find({ role: UserRolesEnum.USER });
+            return await this.userDataSource.find({});
          } catch (error) {
              if (error instanceof ApiError) {
                  throw error

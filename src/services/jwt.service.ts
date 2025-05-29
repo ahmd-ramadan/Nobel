@@ -45,7 +45,7 @@ export class JwtService {
             return verify(token, secret as Secret) as IJwtPayload;
         } catch (error) {
             console.log(error)
-            throw new ApiError('التوكين غير صحيح', BAD_REQUEST);
+            throw new ApiError('Token is invalid', BAD_REQUEST);
         }
     }
 }
