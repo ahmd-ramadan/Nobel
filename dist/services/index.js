@@ -20,3 +20,6 @@ __exportStar(require("./jwt.service"), exports);
 __exportStar(require("./user.service"), exports);
 __exportStar(require("./token.service"), exports);
 __exportStar(require("./localStorage.service"), exports);
+__exportStar(require("./rpm.service"), exports);
+__exportStar(require("./model.service"), exports);
+__exportStar(require("./point.service"), exports);

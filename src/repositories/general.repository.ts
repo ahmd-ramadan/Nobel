@@ -48,6 +48,20 @@ export default class GeneralRepository<T, Response = T> {
         return created;
     }
 
+    async insertMany(data: Partial<T>[], options?: { ordered?: boolean; populate?: PopulateType }): Promise<(Response | T)[]> {
+        const insertedDocs = await this.dbClient.insertMany(data, { ordered: options?.ordered ?? true });
+    
+        if (options?.populate) {
+            // Populate each inserted document
+            return Promise.all(
+                insertedDocs.map(doc => this.populateHelper<Response>(doc, options.populate) as Promise<Response | T>)
+            );
+        }
+    
+        return insertedDocs as (Response | T)[];
+    }
+    
+
     async findOne(query: FilterQuery<T>): Promise<T | null> {
         return this.dbClient.findOne(query);
     }

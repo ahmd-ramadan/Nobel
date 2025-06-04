@@ -18,7 +18,6 @@ const morganLogger =
         skip: (_, res) => res.statusCode < INTERNAL_SERVER_ERROR,
       });
 
-
 app.get('/', (_, res) => {
     res.send(
         '<div style="text-align: center; margin-top: 20px;"><h1>Welcome to Nobel Apis</h1></div>',

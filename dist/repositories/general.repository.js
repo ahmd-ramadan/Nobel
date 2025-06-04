@@ -45,6 +45,17 @@ class GeneralRepository {
             return created;
         });
     }
+    insertMany(data, options) {
+        return __awaiter(this, void 0, void 0, function* () {
+            var _a;
+            const insertedDocs = yield this.dbClient.insertMany(data, { ordered: (_a = options === null || options === void 0 ? void 0 : options.ordered) !== null && _a !== void 0 ? _a : true });
+            if (options === null || options === void 0 ? void 0 : options.populate) {
+                // Populate each inserted document
+                return Promise.all(insertedDocs.map(doc => this.populateHelper(doc, options.populate)));
+            }
+            return insertedDocs;
+        });
+    }
     findOne(query) {
         return __awaiter(this, void 0, void 0, function* () {
             return this.dbClient.findOne(query);

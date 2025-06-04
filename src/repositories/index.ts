@@ -1,2 +1,5 @@
 export * from './user.repository'
 export * from './token.repository'
+export * from './model.repository'
+export * from './rpm.repository'
+export * from './point.repository'

@@ -33,6 +33,8 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.userCtrl = exports.authCtrl = void 0;
+exports.pointCtrl = exports.modelCtrl = exports.userCtrl = exports.authCtrl = void 0;
 exports.authCtrl = __importStar(require("./auth.controller"));
 exports.userCtrl = __importStar(require("./user.controller"));
+exports.modelCtrl = __importStar(require("./model.controller"));
+exports.pointCtrl = __importStar(require("./point.controller"));

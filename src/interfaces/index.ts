@@ -3,3 +3,6 @@ export * from './user.interface';
 export * from './jwt.interface';
 export * from './token.interface';
 export * from './auth.interface';
+export * from './model.interface';
+export * from './rpm.interface';
+export * from './point.interface';

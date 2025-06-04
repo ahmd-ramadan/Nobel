@@ -15,3 +15,5 @@ var __exportStar = (this && this.__exportStar) || function(m, exports) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 __exportStar(require("./user.access"), exports);
+__exportStar(require("./model.access"), exports);
+__exportStar(require("./point.access"), exports);

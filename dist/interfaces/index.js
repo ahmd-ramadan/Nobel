@@ -19,3 +19,6 @@ __exportStar(require("./user.interface"), exports);
 __exportStar(require("./jwt.interface"), exports);
 __exportStar(require("./token.interface"), exports);
 __exportStar(require("./auth.interface"), exports);
+__exportStar(require("./model.interface"), exports);
+__exportStar(require("./rpm.interface"), exports);
+__exportStar(require("./point.interface"), exports);

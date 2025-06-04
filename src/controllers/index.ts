@@ -1,2 +1,4 @@
 export * as authCtrl from './auth.controller'
 export * as userCtrl from './user.controller'
+export * as modelCtrl from './model.controller'
+export * as pointCtrl from './point.controller'

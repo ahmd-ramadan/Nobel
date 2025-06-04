@@ -18,3 +18,7 @@ __exportStar(require("./auth.validation"), exports);
 __exportStar(require("./user.validation"), exports);
 __exportStar(require("./params.validation"), exports);
 __exportStar(require("./query.validation"), exports);
+__exportStar(require("./model.validation"), exports);
+__exportStar(require("./rpm.validation"), exports);
+__exportStar(require("./rpm.validation"), exports);
+__exportStar(require("./point.validation"), exports);
