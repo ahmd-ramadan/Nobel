@@ -15,7 +15,7 @@ class PointService {
         return point;
     }
 
-    async addPoint({ isUpdate, data }:{ isUpdate: boolean, data: ICreatePointsData }) {
+    async addPoint({ isUpdate, data }:{ isUpdate: boolean, data: any }) {
         try {
             const { rpm, modelId, points } = data;
             let addedRPM: IRPM = {} as IRPM;  
@@ -29,7 +29,7 @@ class PointService {
                 await this.pointDataSource.deleteMany({ modelId, rpmId: addedRPM._id });
             }
 
-            let newPoints = points.map((point) => {
+            let newPoints = points.map((point: any) => {
                 return { modelId, rpmId: addedRPM._id, ... point }
             });
             const addedPoints = await pointRepository.insertMany(newPoints);
@@ -40,6 +40,48 @@ class PointService {
             // If any error delete all points and rpms for this model
             if(error instanceof ApiError) throw error
             throw new ApiError('Add points data failed', INTERNAL_SERVER_ERROR)
+        }
+    }
+
+    async addAllPointForRpm(data: ICreatePointsData, retryCount = 0): Promise<any> {
+        const maxRetries = 3;
+        const retryDelay = 2000; // 2 seconds
+        
+        try {
+            const { rpmId, modelId, points } = data;  
+            
+            await this.pointDataSource.deleteMany({ modelId, rpmId });
+
+            let newPoints = points.map((point) => {
+                return { modelId, rpmId, ... point }
+            });
+
+            const addedPoints = await pointRepository.insertMany(newPoints);
+
+            console.log(`✅ Added ${points.length} points for RPM ${rpmId} successfully✅`)
+            return addedPoints;
+        } catch(error) {
+            console.error(`Error adding points for RPM ${data.rpmId} (attempt ${retryCount + 1}/${maxRetries + 1}):`, error);
+            
+            // Check if it's a network-related error that can be retried
+            if (error instanceof Error && (
+                error.name === 'MongoNetworkTimeoutError' || 
+                error.name === 'MongoNetworkError' ||
+                error.message.includes('ENOTFOUND') ||
+                error.message.includes('getaddrinfo')
+            )) {
+                if (retryCount < maxRetries) {
+                    console.log(`🔄 Retrying in ${retryDelay}ms... (attempt ${retryCount + 1}/${maxRetries})`);
+                    await new Promise(resolve => setTimeout(resolve, retryDelay));
+                    return this.addAllPointForRpm(data, retryCount + 1);
+                } else {
+                    throw new ApiError(`Database connection failed after ${maxRetries + 1} attempts for RPM ${data.rpmId}. Please check your network connection and MongoDB Atlas status.`, INTERNAL_SERVER_ERROR)
+                }
+            }
+            
+            // If any error delete all points and rpms for this model
+            if(error instanceof ApiError) throw error
+            throw new ApiError(`Add points data for RPM ${data.rpmId} failed: ${error instanceof Error ? error.message : 'Unknown error'}`, INTERNAL_SERVER_ERROR)
         }
     }
 

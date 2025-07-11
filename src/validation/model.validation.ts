@@ -13,6 +13,8 @@ export const addModelSchema = z.object({
     type: z.nativeEnum(ModelTypesEnum),
     name: z.string(),
     desc: z.string().optional(),
+    startRpmNumber: z.number().positive().int(),
+    endRpmNumber: z.number().positive().int(),
     points: z.array(modelPoint).length(5)
 }) 
 
@@ -20,6 +22,8 @@ export const updateModelSchema = z.object({
     type: z.nativeEnum(ModelTypesEnum).optional(),
     name: z.string().optional(),
     desc: z.string().optional(),
+    startRpmNumber: z.number().positive().int().optional(),
+    endRpmNumber: z.number().positive().int().optional(),
     points: z.array(modelPoint).length(5).optional()
 }) 
 

@@ -7,7 +7,7 @@ import { INTERNAL_SERVER_ERROR, logger, SERVER } from "./utils"
 import { corsConfig, nodeEnv, port } from "./config"
 import { errorHandler, xss } from "./middlewares"
 import routes from './routes'
-import { connect } from "./utils"
+import { connectWithDatabase } from "./utils"
 import { tokenService } from "./services"
 
 const app: Application = express();
@@ -41,7 +41,8 @@ export const start = async () => {
         
         tokenService.scheduleTokenCleanupTask();
 
-        await connect();
+        await connectWithDatabase();
+
         const server = app.listen(Number(port) || SERVER.DEFAULT_PORT_NUMBER, '0.0.0.0', () => {
             logger.info(
                 `Server is running on ${port || SERVER.DEFAULT_PORT_NUMBER} 🚀`,

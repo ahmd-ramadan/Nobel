@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { modelCtrl } from '../controllers';
+import { modelCtrl, nativeModelCtrl } from '../controllers';
 import { isAuthorized, isAuthunticated } from '../middlewares';
 import asyncHandler from 'express-async-handler'
 import { manageModel } from '../access';
@@ -12,10 +12,12 @@ router.use(
 router.route('/')
     .get(
         asyncHandler(modelCtrl.getAllModels)
+        // asyncHandler(nativeModelCtrl.getAllModels)
     )
     .post(
         isAuthorized(manageModel),
-        asyncHandler(modelCtrl.addModel)
+        // asyncHandler(modelCtrl.addModel)
+        asyncHandler(nativeModelCtrl.addModel)
     )
 
 router.route('/:_id')
@@ -28,7 +30,8 @@ router.route('/:_id')
     )
     .delete(
         isAuthorized(manageModel),
-        asyncHandler(modelCtrl.deleteModel)
+        // asyncHandler(modelCtrl.deleteModel)
+        asyncHandler(nativeModelCtrl.deleteModel)
     )
 
 

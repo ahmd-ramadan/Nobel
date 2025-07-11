@@ -9,10 +9,20 @@ const modelSchema = new Schema({
     },
     name: { 
         type: String, 
-        required: true 
+        required: true,
+        unique: true,
+        index: true
     },
     description: { 
         type: String 
+    },
+    startRpmNumber: {
+        type: Number,
+        required: true
+    },
+    endRpmNumber: {
+        type: Number,
+        required: true
     },
     points: [
         {

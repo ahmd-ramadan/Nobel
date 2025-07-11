@@ -4,6 +4,8 @@ export interface IModelModel extends IDBModel {
     type: ModelTypesEnum, 
     name: string;
     desc?: string;
+    startRpmNumber: number;
+    endRpmNumber: number;
     points: IModelPoint[]
 }
 
@@ -26,5 +28,7 @@ export interface ICreateModelData {
     type: ModelTypesEnum;
     name: string;
     desc?: string;
+    startRpmNumber: number;
+    endRpmNumber: number;
     points: IModelPoint[]
 }
