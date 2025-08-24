@@ -61,15 +61,14 @@ class TokenService {
     }
 
     scheduleTokenCleanupTask() {
-        cron.schedule('0 0 * * *', () => {
+        cron.schedule('0 0 * * *', async () => {
             logger.info('Cleanup tokens cron job started 🕛');
-            this.deleteExpiredTokens()
-                .then(() => {
-                    logger.info('Cleanup tokens cron job completed ✅');
-                })
-                .catch((error) => {
+            try {
+                await this.deleteExpiredTokens()
+                logger.info('Cleanup tokens cron job completed ✅');
+            } catch(error) {
                     logger.error('Cleanup tokens cron job failed ❌', error);
-                });
+            };
         });
     }
 }

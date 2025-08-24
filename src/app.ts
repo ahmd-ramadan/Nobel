@@ -8,7 +8,7 @@ import { corsConfig, nodeEnv, port } from "./config"
 import { errorHandler, xss } from "./middlewares"
 import routes from './routes'
 import { connectWithDatabase } from "./utils"
-import { tokenService } from "./services"
+import { tokenService, trackingService } from "./services"
 
 const app: Application = express();
 const morganLogger =
@@ -40,6 +40,7 @@ export const start = async () => {
     try {
         
         tokenService.scheduleTokenCleanupTask();
+        trackingService.scheduleTrackingCleanupTask();
 
         await connectWithDatabase();
 

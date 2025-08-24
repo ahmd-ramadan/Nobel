@@ -7,6 +7,10 @@ const modelSchema = new Schema({
         enum: Object.values(ModelTypesEnum),
         required: true
     },
+    factor: {
+        type: Number,
+        required: true,
+    },
     name: { 
         type: String, 
         required: true,
@@ -47,7 +51,12 @@ const modelSchema = new Schema({
                 required: true 
             },
         }
-    ]
+    ],
+    isComplete: {
+        type: Boolean,
+        required: true,
+        default: false
+    }
 }, {
     timestamps: true,
     versionKey: false,

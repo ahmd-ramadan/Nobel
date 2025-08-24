@@ -1,7 +1,7 @@
 import { DeleteUserTypes, UserRolesEnum } from "../enums";
 import { ICreateUserQuery, IUserModel } from "../interfaces";
 import { userRepository } from "../repositories";
-import { ApiError, BAD_REQUEST, CONFLICT, INTERNAL_SERVER_ERROR, NOT_FOUND } from "../utils";
+import { ApiError, BAD_REQUEST, CONFLICT, INTERNAL_SERVER_ERROR, NOT_FOUND, pagenation } from "../utils";
 // import { HashingService } from "./hashing.service";
 import { ValidationErrorMessages } from '../constants/error.messages';
 import { tokenService } from "./token.service";
@@ -123,9 +123,10 @@ class UserService {
         }
     }
 
-    async getAllUsers() {
+    async getAllUsers({ page, size }: { page: number, size: number }) {
         try {
-            return await this.userDataSource.find({});
+            const { skip, limit } = pagenation({ page, size });
+            return await this.userDataSource.find({ skip, limit });
          } catch (error) {
              if (error instanceof ApiError) {
                  throw error

@@ -12,6 +12,7 @@ export const modelPoint = z.object({
 export const addModelSchema = z.object({
     type: z.nativeEnum(ModelTypesEnum),
     name: z.string(),
+    factor: z.number(),
     desc: z.string().optional(),
     startRpmNumber: z.number().positive().int(),
     endRpmNumber: z.number().positive().int(),

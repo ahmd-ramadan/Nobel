@@ -2,7 +2,7 @@ import { Response } from "express";
 import { userService } from "../services";
 import { OK } from "../utils";
 import { AuthenticatedRequest, IUser } from "../interfaces";
-import { addUserSchema, deleteUserSchema, paramsSchema, updateUserPasswordSchema, updateUserProfileSchema, updateUserSchema } from "../validation";
+import { addUserSchema, deleteUserSchema, paginationSchema, paramsSchema, updateUserPasswordSchema, updateUserProfileSchema, updateUserSchema } from "../validation";
 import { DeleteUserTypes, UserRolesEnum } from "../enums";
 import { ValidationErrorMessages } from '../constants/error.messages';
 
@@ -93,7 +93,9 @@ export const cancelUserBlock = async (req: AuthenticatedRequest, res: Response) 
 };
 
 export const getAllUsers = async (req: AuthenticatedRequest, res: Response) => {
-    const admins = await userService.getAllUsers();
+    const { page, size } = paginationSchema.parse(req.query);
+
+    const admins = await userService.getAllUsers({ page, size });
 
     res.status(OK).json({ 
         success: true,

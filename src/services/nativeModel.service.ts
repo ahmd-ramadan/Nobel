@@ -3,6 +3,7 @@ import { ICreateModelData, ICreateRPMData, ICreatePointsData, IModel, IPointData
 import { ApiError, CONFLICT, INTERNAL_SERVER_ERROR, NOT_FOUND } from "../utils";
 import { calculateDiameter, calculateFirstRpm, handleGenerateNextRpm } from "../utils/points.utils";
 import { mongodbUrl } from "../config";
+import { ValidationErrorMessages } from '../constants/error.messages';
 
 class NativeModelService {
     private client: MongoClient;
@@ -49,13 +50,14 @@ class NativeModelService {
             // Check if model exists
             const isModelExist = await this.isModelExistsByName(data.name);
             if (isModelExist) {
-                throw new ApiError("This model name is exist can't add two models with two names", CONFLICT)
+                throw new ApiError(ValidationErrorMessages.ADD_MODEL_FAILED, CONFLICT)
             }
 
             // Insert model
-            const result = await this.db.collection('models').insertOne(data);
+            const result = await this.db.collection('models').insertOne({ ...data, isComplete: false });
             const model: IModel = { 
                 ...data, 
+                isComplete: false,
                 _id: result.insertedId.toString(),
                 createdAt: new Date(),
                 updatedAt: new Date()
@@ -66,7 +68,8 @@ class NativeModelService {
                 try {
                     console.log(`🚀 Starting native processing for model: ${model.name} (RPMs ${model.startRpmNumber}-${model.endRpmNumber})`);
                     
-                    await this.addRPMWithPoints(model);
+                    const isOk = await this.addRPMWithPoints(model);
+                    // if(isOk === true) await this.db.collection('models').findOneAndUpdate({ _id: result.insertedId }, { isComplete: true })
                     
                     console.log(`\n💯 Successfully completed native processing for model: ${model.name} 💯`);
                     
@@ -84,86 +87,172 @@ class NativeModelService {
 
     async addRPMWithPoints(model: IModel) {
         try {
-            const { _id: modelId, startRpmNumber, endRpmNumber, points } = model;
+            const { _id: modelId, startRpmNumber, endRpmNumber, name } = model;
 
-            // Create first RPM
-            const firstRpmResult = await this.db.collection('rpms').insertOne({ 
-                modelId, 
-                rpm: startRpmNumber 
-            });
-            const firstRpm = { _id: firstRpmResult.insertedId, modelId, rpm: startRpmNumber };
+            // Calculate diameter for this model
+            const diameter = calculateDiameter(parseInt(name));
 
-            const diameter = calculateDiameter(parseInt(model.name));
-            
-            // Generate first rpm points
-            const firstRpmPoints = calculateFirstRpm(points, startRpmNumber, diameter);
-            await this.addAllPointsForRpm({ 
-                modelId, 
-                rpmId: firstRpm._id.toString(), 
-                points: firstRpmPoints as IPointData[] 
-            });
+            const firstRpmPoints = await this.generateFirstRpmPoints({ model, diameter });
 
             // Process remaining RPMs in batches
             const batchSize = 10; // Can be larger with native driver
             
+            // for (let batchStart = startRpmNumber + 1; batchStart <= endRpmNumber; batchStart += batchSize) {
+            //     const batchEnd = Math.min(batchStart + batchSize - 1, endRpmNumber);
+                
+            //     console.log(`Processing RPMs ${batchStart} to ${batchEnd}...`);
+                
+            //     // Create RPMs for this batch
+            //     const rpmOperations = [];
+            //     for (let rpm = batchStart; rpm <= batchEnd; rpm++) {
+            //         rpmOperations.push({
+            //             insertOne: {
+            //                 document: { modelId, rpm }
+            //             }
+            //         });
+            //     }
+                
+            //     const rpmResults = await this.db.collection('rpms').bulkWrite(rpmOperations);
+                
+            //     // Generate and insert points for this batch
+            //     const pointOperations: any[] = [];
+            //     let rpmIndex = 0;
+                
+            //     for (let rpm = batchStart; rpm <= batchEnd; rpm++) {
+            //         const rpmId = rpmResults.insertedIds[rpmIndex];
+            //         const nextRpmPoints = handleGenerateNextRpm(
+            //             firstRpm.points as IPointData[], 
+            //             startRpmNumber, 
+            //             rpm, 
+            //             diameter
+            //         ) as IPointData[];
+                    
+            //         // Add points to batch operations
+            //         nextRpmPoints.forEach(point => {
+            //             pointOperations.push({
+            //                 insertOne: {
+            //                     document: { modelId, rpmId, ...point }
+            //                 }
+            //             });
+            //         });
+                    
+            //         rpmIndex++;
+            //     }
+                
+            //     // Bulk insert all points for this batch
+            //     if (pointOperations.length > 0) {
+            //         await this.db.collection('points').bulkWrite(pointOperations);
+            //         console.log(`✅ Added ${pointOperations.length} points for RPMs ${batchStart}-${batchEnd}`);
+            //     }
+                
+            //     // Small delay between batches
+            //     if (batchEnd < endRpmNumber) {
+            //         await new Promise(resolve => setTimeout(resolve, 200));
+            //     }
+            // }
+
+            // Add Rpms in one operations not more than 3000 rpms in one model
+            // From startRpm + 1 to endRpm
+           
+            const allRpms = Array.from({ length: endRpmNumber - startRpmNumber }, (_, rpm) => ({ modelId, rpm: rpm + startRpmNumber + 1 }));
+            // console.log("Next Generated Rpms: ", allRpms);
+            const allRpmsAdded = await this.db.collection('rpms').insertMany(allRpms);
+            
+            let rpmIndex = 0;
             for (let batchStart = startRpmNumber + 1; batchStart <= endRpmNumber; batchStart += batchSize) {
                 const batchEnd = Math.min(batchStart + batchSize - 1, endRpmNumber);
                 
                 console.log(`Processing RPMs ${batchStart} to ${batchEnd}...`);
                 
                 // Create RPMs for this batch
-                const rpmOperations = [];
-                for (let rpm = batchStart; rpm <= batchEnd; rpm++) {
-                    rpmOperations.push({
-                        insertOne: {
-                            document: { modelId, rpm }
-                        }
-                    });
-                }
+                // const rpmOperations = [];
+                // for (let rpm = batchStart; rpm <= batchEnd; rpm++) {
+                //     rpmOperations.push({
+                //         insertOne: {
+                //             document: { modelId, rpm }
+                //         }
+                //     });
+                // }
                 
-                const rpmResults = await this.db.collection('rpms').bulkWrite(rpmOperations);
+                // const rpmResults = await this.db.collection('rpms').bulkWrite(rpmOperations);
                 
                 // Generate and insert points for this batch
-                const pointOperations: any[] = [];
-                let rpmIndex = 0;
                 
+                const pointOperations: any[] = [];
+                const promisesAll = [];
+
                 for (let rpm = batchStart; rpm <= batchEnd; rpm++) {
-                    const rpmId = rpmResults.insertedIds[rpmIndex];
+                    const rpmId = allRpmsAdded.insertedIds[rpmIndex].toString();
+                    // console.log(rpmId)
                     const nextRpmPoints = handleGenerateNextRpm(
-                        firstRpmPoints as IPointData[], 
-                        startRpmNumber, 
-                        rpm, 
+                        firstRpmPoints as IPointData[], // <-- use the array, not firstRpm.points
+                        startRpmNumber,
+                        rpm,
                         diameter
                     ) as IPointData[];
                     
-                    // Add points to batch operations
-                    nextRpmPoints.forEach(point => {
-                        pointOperations.push({
-                            insertOne: {
-                                document: { modelId, rpmId, ...point }
-                            }
-                        });
-                    });
+                    // // Add points to batch operations
+                    // nextRpmPoints.forEach(point => {
+                    //     pointOperations.push({
+                    //         insertOne: {
+                    //             document: { modelId, rpmId, ...point }
+                    //         }
+                    //     });
+                    // });
+
+                    promisesAll.push(this.addAllPointsForRpm({ modelId, rpmId, points: nextRpmPoints }))
                     
                     rpmIndex++;
                 }
+                await Promise.all(promisesAll);
                 
                 // Bulk insert all points for this batch
                 if (pointOperations.length > 0) {
-                    await this.db.collection('points').bulkWrite(pointOperations);
+                    // await this.db.collection('points').bulkWrite(pointOperations);
                     console.log(`✅ Added ${pointOperations.length} points for RPMs ${batchStart}-${batchEnd}`);
                 }
                 
                 // Small delay between batches
                 if (batchEnd < endRpmNumber) {
-                    await new Promise(resolve => setTimeout(resolve, 200));
+                    await new Promise(resolve => setTimeout(resolve, 100));
                 }
             }
+
+            return true;;
 
         } catch (error) {
             console.error('Error in addRPMWithPoints:', error);
             if (error instanceof ApiError) throw error;
             throw new ApiError('Add RPMs With Points failed', INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    async generateFirstRpmPoints({ model, diameter }: { model: IModel, diameter: number }) {
+        try {   
+            const { _id: modelId, startRpmNumber, points, name } = model;
+            
+            // Create first RPM
+            const firstRpmResult = await this.db.collection('rpms').insertOne({ 
+                modelId, 
+                rpm: startRpmNumber 
+            });
+            const firstRpm = { _id: firstRpmResult.insertedId, modelId, rpm: startRpmNumber };
+            
+            // Generate first rpm points
+            const firstRpmPoints = calculateFirstRpm(points, startRpmNumber, diameter);
+
+            const result = await this.addAllPointsForRpm({ 
+                modelId, 
+                rpmId: firstRpm._id.toString(), 
+                points: firstRpmPoints as IPointData[] 
+            });
+
+            // console.log(result)
+            
+            return firstRpmPoints; // <-- return the points array
+        } catch(err) {
+            if(err instanceof ApiError) throw err
+            throw new ApiError('Failed to generate and add first rpm points', INTERNAL_SERVER_ERROR)
         }
     }
 
@@ -188,6 +277,7 @@ class NativeModelService {
             const result = await this.db.collection('points').insertMany(documents);
             
             console.log(`✅ Added ${points.length} points for RPM ${rpmId} successfully✅`);
+            
             return result;
             
         } catch (error) {
@@ -221,8 +311,8 @@ class NativeModelService {
             // Delete model, RPMs, and points in parallel
             const [modelResult, rpmResult, pointResult] = await Promise.all([
                 this.db.collection('models').deleteOne({ _id: new ObjectId(modelId) }),
-                this.db.collection('rpms').deleteMany({ modelId: new ObjectId(modelId) }),
-                this.db.collection('points').deleteMany({ modelId: new ObjectId(modelId) })
+                this.db.collection('rpms').deleteMany({ modelId }),
+                this.db.collection('points').deleteMany({ modelId })
             ]);
             
             // if (!modelResult.deletedCount) {
@@ -234,7 +324,7 @@ class NativeModelService {
             
         } catch (error) {
             if (error instanceof ApiError) throw error;
-            throw new ApiError('Delete model failed', INTERNAL_SERVER_ERROR);
+            throw new ApiError(ValidationErrorMessages.DELETE_MODEL_FAILED, INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -249,7 +339,7 @@ class NativeModelService {
             
         } catch (error) {
             if (error instanceof ApiError) throw error;
-            throw new ApiError('Get all models failed', INTERNAL_SERVER_ERROR);
+            throw new ApiError(ValidationErrorMessages.GET_ALL_MODEL_FAILED, INTERNAL_SERVER_ERROR);
         }
     }
 }

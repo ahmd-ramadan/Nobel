@@ -6,3 +6,4 @@ export * from './auth.interface';
 export * from './model.interface';
 export * from './rpm.interface';
 export * from './point.interface';
+export * from './tracking.interface';

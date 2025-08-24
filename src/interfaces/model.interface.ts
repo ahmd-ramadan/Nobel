@@ -3,17 +3,19 @@ import { IDBModel } from "./database.interface";
 export interface IModelModel extends IDBModel {
     type: ModelTypesEnum, 
     name: string;
+    factor: number;
     desc?: string;
     startRpmNumber: number;
     endRpmNumber: number;
-    points: IModelPoint[]
+    points: IModelPoint[];
+    isComplete: boolean;
 }
 
 export interface IModel extends IModelModel {}
 
 export enum ModelTypesEnum {
     AXIAL = 'axial',
-    SYNTROPHIC = 'syntrophic'
+    CENTRIFUGAL = 'centrifugal'
 }
 
 export interface IModelPoint {
@@ -27,6 +29,7 @@ export interface IModelPoint {
 export interface ICreateModelData {
     type: ModelTypesEnum;
     name: string;
+    factor: number;
     desc?: string;
     startRpmNumber: number;
     endRpmNumber: number;

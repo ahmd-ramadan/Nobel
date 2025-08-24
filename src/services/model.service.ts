@@ -1,7 +1,8 @@
+import { ValidationErrorMessages } from "../constants/error.messages";
 import { ICreateModelData, ModelTypesEnum } from "../interfaces";
 import { Point, RPM } from "../models";
 import { modelRepository } from "../repositories";
-import { ApiError, CONFLICT, INTERNAL_SERVER_ERROR, NOT_FOUND } from "../utils";
+import { ApiError, CONFLICT, INTERNAL_SERVER_ERROR, NOT_FOUND, pagenation } from "../utils";
 import { rpmService } from "./rpm.service";
 
 class ModelService {
@@ -24,7 +25,7 @@ class ModelService {
         try {
             const isModelExist = await this.isModelExistsByName(data.name);
             if(isModelExist) {
-                throw new ApiError("This model name is exist can't add two models with two names", CONFLICT)
+                throw new ApiError(ValidationErrorMessages.MODEL_EXIST, CONFLICT)
             }
             const model = await this.modelDataSource.createOne(data);
             
@@ -47,7 +48,7 @@ class ModelService {
             return model;
         } catch(error) {
             if(error instanceof ApiError) throw error
-            throw new ApiError('ِAdd model failed', INTERNAL_SERVER_ERROR)
+            throw new ApiError(ValidationErrorMessages.ADD_MODEL_FAILED, INTERNAL_SERVER_ERROR)
         }
     }
 
@@ -56,7 +57,7 @@ class ModelService {
             return await this.modelDataSource.updateOne({ _id: modelId }, data);
         } catch(error) {
             if(error instanceof ApiError) throw error
-            throw new ApiError('Updated model failed', INTERNAL_SERVER_ERROR)
+            throw new ApiError(ValidationErrorMessages.UPDATE_MODEL_FAILED, INTERNAL_SERVER_ERROR)
         }
     }
 
@@ -66,7 +67,7 @@ class ModelService {
             const deletedModel = await this.modelDataSource.deleteOne({ _id: modelId });
             
             if(!deletedModel) {
-                throw new ApiError('Deleted model failed', INTERNAL_SERVER_ERROR)
+                throw new ApiError(ValidationErrorMessages.DELETE_MODEL_FAILED, INTERNAL_SERVER_ERROR)
             }
             
             // Deleted rpms related with this model And Points
@@ -83,17 +84,19 @@ class ModelService {
         }
     }
 
-    async getAllModels({ type }: { type?: ModelTypesEnum }) {
+    async getAllModels({ type, page, size }: { type?: ModelTypesEnum, page: number, size: number }) {
         try {
 
             let query: any = {};
             if(type) query.type = type;
+
+            const { skip, limit } = pagenation({ page, size })
             
-            return await this.modelDataSource.find(query);
+            return await this.modelDataSource.find(query, { skip, limit });
 
         } catch(error) {
             if(error instanceof ApiError) throw error
-            throw new ApiError('Deleted model failed', INTERNAL_SERVER_ERROR)
+            throw new ApiError(ValidationErrorMessages.GET_ALL_MODEL_FAILED, INTERNAL_SERVER_ERROR)
         }
     }
 }

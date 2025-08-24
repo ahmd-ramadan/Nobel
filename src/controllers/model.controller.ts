@@ -1,8 +1,8 @@
 import { Response } from "express";
 import { userService } from "../services";
-import { OK } from "../utils";
+import { OK, pagenation } from "../utils";
 import { AuthenticatedRequest, IUser } from "../interfaces";
-import { addModelSchema, deleteUserSchema, getAllModelsSchema, paramsSchema, updateModelSchema } from "../validation";
+import { addModelSchema, deleteUserSchema, getAllModelsSchema, paginationSchema, paramsSchema, updateModelSchema } from "../validation";
 import { DeleteUserTypes, UserRolesEnum } from "../enums";
 import { ValidationErrorMessages } from '../constants/error.messages';
 import { modelService } from "../services/model.service";
@@ -59,8 +59,9 @@ export const getModelById = async (req: AuthenticatedRequest, res: Response) => 
 
 export const getAllModels = async (req: AuthenticatedRequest, res: Response) => {
     const query = getAllModelsSchema.parse(req.query)
+    const { page, size } = paginationSchema.parse(req.query)
 
-    const models = await modelService.getAllModels(query);
+    const models = await modelService.getAllModels({ ... query, page, size });
 
     res.status(OK).json({ 
         success: true,

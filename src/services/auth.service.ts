@@ -3,9 +3,10 @@ import { ApiError, FORBIDDEN, INTERNAL_SERVER_ERROR, MAGIC_NUMBERS, UNAUTHORIZED
 import { userService } from "./user.service";
 import { tokenService } from "./token.service";
 import { JwtService } from "./jwt.service";
-import { IUser } from "../interfaces";
+import { IUser, TrackingTypesEnum } from "../interfaces";
 import { ValidationErrorMessages } from '../constants/error.messages';
 import { userRepository } from "../repositories";
+import { trackingService } from "./tracking.service";
 
 class AuthService {
 
@@ -36,6 +37,9 @@ class AuthService {
             const token = (await this.generateAndStoreTokens(user)).refreshToken;
             user = await userRepository.updateOne({ _id: user._id }, { isActive: true });
             
+            // Track login
+            await trackingService.addNewTracking({ type: TrackingTypesEnum.LOGIN, userId: user?._id.toString() as string });
+            
             return { data: user, token };
         } catch (error) {
             if(error instanceof ApiError) {
@@ -56,6 +60,7 @@ class AuthService {
         
             await tokenService.deleteOne({ userId, token: refreshToken });
             await userRepository.updateOne({ _id: userId }, { isActive: false });
+            await trackingService.addNewTracking({ type: TrackingTypesEnum.LOGOUT, userId });
         } catch (error) {
             if(error instanceof ApiError) {
                 throw error
