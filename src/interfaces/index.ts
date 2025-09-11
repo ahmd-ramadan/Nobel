@@ -7,3 +7,4 @@ export * from './model.interface';
 export * from './rpm.interface';
 export * from './point.interface';
 export * from './tracking.interface';
+export * from './search.interface';

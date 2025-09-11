@@ -20,5 +20,6 @@ const rpmSchema = new Schema({
 
 
 rpmSchema.index({ modelId: 1, rpm: 1 }, { unique: true }); 
+rpmSchema.index({ rpm: 1 }); 
 
 export const RPM = model<IRPMModel>('RPM', rpmSchema);

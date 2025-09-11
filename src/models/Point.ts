@@ -12,10 +12,6 @@ const pointSchema = new Schema({
         ref: 'RPM', 
         required: true 
     },
-    // index: { 
-    //     type: Number, 
-    //     required: true 
-    // }, // 0 to 999
 
     // Measurements
     flowRate: { 
@@ -38,10 +34,10 @@ const pointSchema = new Schema({
         type: Number, 
         required: true 
     },
-    // lpa: { 
-    //     type: Number, 
-    //     required: true 
-    // },
+    lpa: { 
+        type: Number, 
+        required: true 
+    },
 }, {
     timestamps: true,
     versionKey: false,
@@ -49,10 +45,9 @@ const pointSchema = new Schema({
     toJSON: { virtuals: true }
 });
 
-pointSchema.index({ rpmId: 1, index: 1 }); 
-pointSchema.index({ modelId: 1, rpmId: 1 }); 
-pointSchema.index({ pressure: 1 });
-
-pointSchema.index({ rpmId: 1, modelId: 1 })
+pointSchema.index({ rpmId: 1 }); 
+pointSchema.index({ rpmId: 1, flowRate: 1 }); 
+pointSchema.index({ rpmId: 1, flowRate: 1, totalPressure: 1 });
+  
 
 export const Point = model<IPointModel>('Point', pointSchema);

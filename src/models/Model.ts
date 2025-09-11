@@ -64,4 +64,6 @@ const modelSchema = new Schema({
     toJSON: { virtuals: true }
 });
 
+modelSchema.index({ type: 1, factor: 1 })
+
 export const Model = model<IModel>('Model', modelSchema);

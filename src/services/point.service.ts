@@ -85,6 +85,16 @@ class PointService {
         }
     }
 
+    async getAllPoints({ rpmId, modelId }: { rpmId: string,  modelId?: string }) {
+        let query: any = {};
+        if(modelId) query.modelId = modelId;
+        query.rpmId = rpmId;
+
+        console.log('Query being used:', query);
+
+        return await pointRepository.findWithPopulate(query, [], { limit: 1000 });
+    }
+
     // async updateModel({ modelId, data }: { modelId: string, data: Partial<ICreateModelData> }) {
     //     try {
     //         return await this.pointDataSource.updateOne({ _id: modelId }, data);

@@ -1,7 +1,7 @@
 {
-  "name": "nafsia",
+  "name": "nobel-server",
   "version": "1.0.0",
-  "description": "\"Server for my graduation project 'Nafsia'\" ",
+  "description": "Server for nobel company",
   "main": "index.js",
   "scripts": {
     "build": "npx tsc",

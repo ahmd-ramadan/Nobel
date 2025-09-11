@@ -24,6 +24,11 @@ export const addPointsDataSchema = z.object({
     points: z.array(addPointSchema).length(1000)
 });
 
+export const getAllPointsSchema = z.object({
+    rpmId: z.string().regex(MongoDBObjectId),
+    modelId: z.string().regex(MongoDBObjectId).optional()
+})
+
 const addDataSchema = z.object({
     modelId: z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid modelId'),
     rpms: z.array(rpmSchema)

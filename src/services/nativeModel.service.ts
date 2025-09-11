@@ -1,6 +1,6 @@
 import { MongoClient, Db, ObjectId } from 'mongodb';
-import { ICreateModelData, ICreateRPMData, ICreatePointsData, IModel, IPointData } from "../interfaces";
-import { ApiError, CONFLICT, INTERNAL_SERVER_ERROR, NOT_FOUND } from "../utils";
+import { ICreateModelData, ICreatePointsData, IModel, IPointData } from "../interfaces";
+import { ApiError, CONFLICT, INTERNAL_SERVER_ERROR, } from "../utils";
 import { calculateDiameter, calculateFirstRpm, handleGenerateNextRpm } from "../utils/points.utils";
 import { mongodbUrl } from "../config";
 import { ValidationErrorMessages } from '../constants/error.messages';

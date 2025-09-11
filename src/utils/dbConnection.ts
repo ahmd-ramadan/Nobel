@@ -5,9 +5,9 @@ import { logger } from "../utils"
 export const connectWithDatabase = async () => {
     const options = {
         // Increase connection timeout for large operations
-        connectTimeoutMS: 60000, // 60 seconds
-        socketTimeoutMS: 60000,  // 60 seconds
-        serverSelectionTimeoutMS: 60000, // 60 seconds
+        connectTimeoutMS: 600000, // 60 seconds
+        socketTimeoutMS: 600000,  // 60 seconds
+        serverSelectionTimeoutMS: 600000, // 60 seconds
         
         // Optimize connection pool for large operations
         maxPoolSize: 50, // Increase pool size

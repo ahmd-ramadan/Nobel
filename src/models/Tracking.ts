@@ -14,6 +14,12 @@ const trackingSchema = new Schema({
         required: true, 
         index: true
     },
+    searchResults: [
+        {
+            type: Object,
+            required: true
+        }
+    ]
 }, {
     timestamps: true,
     versionKey: false,

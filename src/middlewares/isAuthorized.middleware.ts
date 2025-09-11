@@ -9,7 +9,8 @@ export const isAuthorized = (allowedRoles: UserRolesEnum[]) => {
         async (req: AuthenticatedRequest, _res: Response, next: NextFunction) => {
             const role = req.user?.role as UserRolesEnum;
             if (!allowedRoles.includes(role)) {
-                return next(new ApiError('غير مسموح لك بإكمال هذه العملية', UNAUTHORIZED));
+                // return next(new ApiError('غير مسموح لك بإكمال هذه العملية', UNAUTHORIZED));
+                return next(new ApiError('Not allowed for you to compelete this process', UNAUTHORIZED));
             }
             next();
         },
