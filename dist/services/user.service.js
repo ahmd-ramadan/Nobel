@@ -135,10 +135,11 @@ class UserService {
             }
         });
     }
-    getAllUsers() {
-        return __awaiter(this, void 0, void 0, function* () {
+    getAllUsers(_a) {
+        return __awaiter(this, arguments, void 0, function* ({ page, size }) {
             try {
-                return yield this.userDataSource.find({});
+                const { skip, limit } = (0, utils_1.pagenation)({ page, size });
+                return yield this.userDataSource.find({ skip, limit });
             }
             catch (error) {
                 if (error instanceof utils_1.ApiError) {

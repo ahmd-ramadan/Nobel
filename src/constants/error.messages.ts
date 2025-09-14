@@ -46,6 +46,7 @@ export const ValidationErrorMessages = {
     GET_ALL_TRACKING_FAILED: "Get all tracking failed",
     UPDATE_MODEL_FAILED: "Update model failed",
     ADD_MODEL_FAILED: "Add model failed",
+    ADD_MODEL_FAILED2: "Another model in process adding, wait some time",
     DELETE_MODEL_FAILED: "Delete model failed",
     GET_ALL_MODEL_FAILED: "Get all models failed",
 } as const;

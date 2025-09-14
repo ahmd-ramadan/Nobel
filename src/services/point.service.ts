@@ -90,9 +90,23 @@ class PointService {
         if(modelId) query.modelId = modelId;
         query.rpmId = rpmId;
 
-        console.log('Query being used:', query);
+        // console.log('Query being used:', query);
 
-        return await pointRepository.findWithPopulate(query, [], { limit: 1000 });
+        return await Point.aggregate([
+            {
+              $match: {
+                rpmId: rpmId
+              }
+            },
+            { 
+              $addFields: {
+                power:  { $multiply: ["$brakePower", 1.15] }
+              }
+            },
+            {
+              $limit: 1000
+            }
+          ]).allowDiskUse(true).exec();
     }
 
     // async updateModel({ modelId, data }: { modelId: string, data: Partial<ICreateModelData> }) {

@@ -19,3 +19,4 @@ __exportStar(require("./Token"), exports);
 __exportStar(require("./Model"), exports);
 __exportStar(require("./RPM"), exports);
 __exportStar(require("./Point"), exports);
+__exportStar(require("./Tracking"), exports);

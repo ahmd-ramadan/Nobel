@@ -28,10 +28,12 @@ const trackingSchema = new Schema({
 });
 
 trackingSchema.virtual("userData", {
-    foreignField: "_id",
     ref: "User",
     localField: "userId",
-    justOne: false
+    foreignField: "_id",
+    options: {
+        select: "name username isActive isBlocked"
+    }
 })
 
 trackingSchema.index({ type: 1, userId: 1 })

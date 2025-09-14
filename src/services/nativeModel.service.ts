@@ -4,6 +4,7 @@ import { ApiError, CONFLICT, INTERNAL_SERVER_ERROR, } from "../utils";
 import { calculateDiameter, calculateFirstRpm, handleGenerateNextRpm } from "../utils/points.utils";
 import { mongodbUrl } from "../config";
 import { ValidationErrorMessages } from '../constants/error.messages';
+import { Model } from '../models'
 
 class NativeModelService {
     private client: MongoClient;
@@ -50,7 +51,12 @@ class NativeModelService {
             // Check if model exists
             const isModelExist = await this.isModelExistsByName(data.name);
             if (isModelExist) {
-                throw new ApiError(ValidationErrorMessages.ADD_MODEL_FAILED, CONFLICT)
+                throw new ApiError(ValidationErrorMessages.MODEL_EXIST, CONFLICT)
+            }
+            // Check if any model in process wait some time
+            const areAnotherModelsInProssess = await Model.find({ isComplete: false });
+            if (areAnotherModelsInProssess.length > 0) {
+                throw new ApiError(ValidationErrorMessages.ADD_MODEL_FAILED2, CONFLICT)
             }
 
             // Insert model
@@ -69,7 +75,7 @@ class NativeModelService {
                     console.log(`🚀 Starting native processing for model: ${model.name} (RPMs ${model.startRpmNumber}-${model.endRpmNumber})`);
                     
                     const isOk = await this.addRPMWithPoints(model);
-                    // if(isOk === true) await this.db.collection('models').findOneAndUpdate({ _id: result.insertedId }, { isComplete: true })
+                    if(isOk === true) await Model.findOneAndUpdate({ _id: result.insertedId }, { isComplete: true })
                     
                     console.log(`\n💯 Successfully completed native processing for model: ${model.name} 💯`);
                     
@@ -80,7 +86,7 @@ class NativeModelService {
 
             return model;
         } catch (error) {
-            if (error instanceof ApiError) throw error;
+            console.log(error)
             throw new ApiError('Add model failed', INTERNAL_SERVER_ERROR);
         }
     }
@@ -307,22 +313,49 @@ class NativeModelService {
     async deleteModel({ modelId }: { modelId: string }) {
         try {
             await this.connect();
-            
+
+            const allRpms = await this.db.collection("rpms")
+            .find({ modelId })
+            .project({ _id: 1 })
+            .toArray();
+
+            let rpmsIdx = allRpms.length - 1;
+            let batchSize = 10;  // 10 * 1000 = 10000
+            let deletedPromises = [];
+
+            if(allRpms.length > 0) {
+                do {
+                    deletedPromises.push(this.db.collection("points").deleteMany({ rpmId: allRpms[rpmsIdx]._id }))
+
+                    batchSize --;
+                    rpmsIdx --;
+
+                    if(batchSize == 0) {
+                        await Promise.all(deletedPromises);
+                        // console.log("Deleted Ok");
+                        deletedPromises = [];
+                        batchSize = 10;
+                    }
+                } while (rpmsIdx >= 0)
+            }
+
+          
             // Delete model, RPMs, and points in parallel
-            const [modelResult, rpmResult, pointResult] = await Promise.all([
-                this.db.collection('models').deleteOne({ _id: new ObjectId(modelId) }),
-                this.db.collection('rpms').deleteMany({ modelId }),
-                this.db.collection('points').deleteMany({ modelId })
+            const [_, rpmResult] = await Promise.all([
+                this.db.collection("models").deleteOne({ _id: new ObjectId(modelId) }),
+                this.db.collection("rpms").deleteMany({ modelId }),
+                // this.db.collection('points').deleteMany({ modelId })
             ]);
             
             // if (!modelResult.deletedCount) {
             //     throw new ApiError('Model not found', NOT_FOUND);
             // }
             
-            console.log(`✅ Deleted model ${modelId} with ${rpmResult.deletedCount} RPMs and ${pointResult.deletedCount} points`);
+            console.log(`✅ Deleted model ${modelId} with ${rpmResult.deletedCount} RPMs`);
             return true;
             
         } catch (error) {
+            console.log(error)
             if (error instanceof ApiError) throw error;
             throw new ApiError(ValidationErrorMessages.DELETE_MODEL_FAILED, INTERNAL_SERVER_ERROR);
         }

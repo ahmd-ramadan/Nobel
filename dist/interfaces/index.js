@@ -22,3 +22,5 @@ __exportStar(require("./auth.interface"), exports);
 __exportStar(require("./model.interface"), exports);
 __exportStar(require("./rpm.interface"), exports);
 __exportStar(require("./point.interface"), exports);
+__exportStar(require("./tracking.interface"), exports);
+__exportStar(require("./search.interface"), exports);

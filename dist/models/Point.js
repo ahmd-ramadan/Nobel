@@ -13,10 +13,6 @@ const pointSchema = new mongoose_1.Schema({
         ref: 'RPM',
         required: true
     },
-    index: {
-        type: Number,
-        required: true
-    }, // 0 to 999
     // Measurements
     flowRate: {
         type: Number,
@@ -48,7 +44,7 @@ const pointSchema = new mongoose_1.Schema({
     toObject: { virtuals: true },
     toJSON: { virtuals: true }
 });
-pointSchema.index({ rpmId: 1, index: 1 });
-pointSchema.index({ modelId: 1, rpmId: 1 });
-pointSchema.index({ pressure: 1 });
+pointSchema.index({ rpmId: 1 });
+pointSchema.index({ rpmId: 1, flowRate: 1 });
+pointSchema.index({ rpmId: 1, flowRate: 1, totalPressure: 1 });
 exports.Point = (0, mongoose_1.model)('Point', pointSchema);

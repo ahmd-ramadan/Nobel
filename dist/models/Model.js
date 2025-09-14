@@ -9,12 +9,26 @@ const modelSchema = new mongoose_1.Schema({
         enum: Object.values(interfaces_1.ModelTypesEnum),
         required: true
     },
+    factor: {
+        type: Number,
+        required: true,
+    },
     name: {
         type: String,
-        required: true
+        required: true,
+        unique: true,
+        index: true
     },
     description: {
         type: String
+    },
+    startRpmNumber: {
+        type: Number,
+        required: true
+    },
+    endRpmNumber: {
+        type: Number,
+        required: true
     },
     points: [
         {
@@ -39,11 +53,17 @@ const modelSchema = new mongoose_1.Schema({
                 required: true
             },
         }
-    ]
+    ],
+    isComplete: {
+        type: Boolean,
+        required: true,
+        default: false
+    }
 }, {
     timestamps: true,
     versionKey: false,
     toObject: { virtuals: true },
     toJSON: { virtuals: true }
 });
+modelSchema.index({ type: 1, factor: 1 });
 exports.Model = (0, mongoose_1.model)('Model', modelSchema);

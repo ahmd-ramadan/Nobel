@@ -83,6 +83,8 @@ class GeneralRepository {
                 dbQuery = dbQuery.skip(options.skip);
             if (options === null || options === void 0 ? void 0 : options.limit)
                 dbQuery = dbQuery.limit(options.limit);
+            if ((options === null || options === void 0 ? void 0 : options.sort) !== undefined)
+                dbQuery = dbQuery.sort(options.sort);
             return yield this.populateHelper(dbQuery, populate);
         });
     }

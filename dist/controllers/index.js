@@ -33,8 +33,11 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.pointCtrl = exports.modelCtrl = exports.userCtrl = exports.authCtrl = void 0;
+exports.searchCtrl = exports.trackingCtrl = exports.nativeModelCtrl = exports.pointCtrl = exports.modelCtrl = exports.userCtrl = exports.authCtrl = void 0;
 exports.authCtrl = __importStar(require("./auth.controller"));
 exports.userCtrl = __importStar(require("./user.controller"));
 exports.modelCtrl = __importStar(require("./model.controller"));
 exports.pointCtrl = __importStar(require("./point.controller"));
+exports.nativeModelCtrl = __importStar(require("./nativeModel.controller"));
+exports.trackingCtrl = __importStar(require("./tracking.controller"));
+exports.searchCtrl = __importStar(require("./search.controller"));

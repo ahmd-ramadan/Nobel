@@ -19,4 +19,5 @@ const rpmSchema = new mongoose_1.Schema({
     toJSON: { virtuals: true }
 });
 rpmSchema.index({ modelId: 1, rpm: 1 }, { unique: true });
+rpmSchema.index({ rpm: 1 });
 exports.RPM = (0, mongoose_1.model)('RPM', rpmSchema);

@@ -19,3 +19,4 @@ __exportStar(require("./token.repository"), exports);
 __exportStar(require("./model.repository"), exports);
 __exportStar(require("./rpm.repository"), exports);
 __exportStar(require("./point.repository"), exports);
+__exportStar(require("./tracking.repository"), exports);

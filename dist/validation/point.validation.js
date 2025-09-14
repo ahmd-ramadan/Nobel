@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.addPointsDataSchema = void 0;
+exports.getAllPointsSchema = exports.addPointsDataSchema = void 0;
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const zod_1 = require("zod");
@@ -25,6 +25,10 @@ exports.addPointsDataSchema = zod_1.z.object({
     modelId: zod_1.z.string().regex(utils_1.MongoDBObjectId, 'Invalid modelId'),
     rpm: zod_1.z.number().int().positive(),
     points: zod_1.z.array(addPointSchema).length(1000)
+});
+exports.getAllPointsSchema = zod_1.z.object({
+    rpmId: zod_1.z.string().regex(utils_1.MongoDBObjectId),
+    modelId: zod_1.z.string().regex(utils_1.MongoDBObjectId).optional()
 });
 const addDataSchema = zod_1.z.object({
     modelId: zod_1.z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid modelId'),

@@ -22,3 +22,5 @@ __exportStar(require("./model.validation"), exports);
 __exportStar(require("./rpm.validation"), exports);
 __exportStar(require("./rpm.validation"), exports);
 __exportStar(require("./point.validation"), exports);
+__exportStar(require("./tracking.validation"), exports);
+__exportStar(require("./search.validation"), exports);

@@ -9,7 +9,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.addPointsData = void 0;
+exports.getAllPoints = exports.addPointsData = void 0;
 const utils_1 = require("../utils");
 const services_1 = require("../services");
 const validation_1 = require("../validation");
@@ -23,3 +23,14 @@ const addPointsData = (req, res) => __awaiter(void 0, void 0, void 0, function* 
     });
 });
 exports.addPointsData = addPointsData;
+const getAllPoints = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const query = validation_1.getAllPointsSchema
+        .parse(req.query);
+    const allPointsForRpm = yield services_1.pointService.getAllPoints(query);
+    res.status(200).json({
+        success: true,
+        message: "All points retrieved successfully",
+        data: allPointsForRpm
+    });
+});
+exports.getAllPoints = getAllPoints;

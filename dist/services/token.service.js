@@ -74,16 +74,17 @@ class TokenService {
         });
     }
     scheduleTokenCleanupTask() {
-        node_cron_1.default.schedule('0 0 * * *', () => {
+        node_cron_1.default.schedule('0 0 * * *', () => __awaiter(this, void 0, void 0, function* () {
             utils_1.logger.info('Cleanup tokens cron job started 🕛');
-            this.deleteExpiredTokens()
-                .then(() => {
+            try {
+                yield this.deleteExpiredTokens();
                 utils_1.logger.info('Cleanup tokens cron job completed ✅');
-            })
-                .catch((error) => {
+            }
+            catch (error) {
                 utils_1.logger.error('Cleanup tokens cron job failed ❌', error);
-            });
-        });
+            }
+            ;
+        }));
     }
 }
 exports.tokenService = new TokenService();

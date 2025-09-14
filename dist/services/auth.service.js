@@ -15,8 +15,10 @@ const utils_1 = require("../utils");
 const user_service_1 = require("./user.service");
 const token_service_1 = require("./token.service");
 const jwt_service_1 = require("./jwt.service");
+const interfaces_1 = require("../interfaces");
 const error_messages_1 = require("../constants/error.messages");
 const repositories_1 = require("../repositories");
+const tracking_service_1 = require("./tracking.service");
 class AuthService {
     login(_a) {
         return __awaiter(this, arguments, void 0, function* ({ username, password }) {
@@ -37,6 +39,8 @@ class AuthService {
                 }
                 const token = (yield this.generateAndStoreTokens(user)).refreshToken;
                 user = yield repositories_1.userRepository.updateOne({ _id: user._id }, { isActive: true });
+                // Track login
+                yield tracking_service_1.trackingService.addNewTracking({ type: interfaces_1.TrackingTypesEnum.LOGIN, userId: user === null || user === void 0 ? void 0 : user._id.toString() });
                 return { data: user, token };
             }
             catch (error) {
@@ -56,6 +60,7 @@ class AuthService {
                 }
                 yield token_service_1.tokenService.deleteOne({ userId, token: refreshToken });
                 yield repositories_1.userRepository.updateOne({ _id: userId }, { isActive: false });
+                yield tracking_service_1.trackingService.addNewTracking({ type: interfaces_1.TrackingTypesEnum.LOGOUT, userId });
             }
             catch (error) {
                 if (error instanceof utils_1.ApiError) {

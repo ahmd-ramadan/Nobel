@@ -20,7 +20,8 @@ const isAuthorized = (allowedRoles) => {
         var _a;
         const role = (_a = req.user) === null || _a === void 0 ? void 0 : _a.role;
         if (!allowedRoles.includes(role)) {
-            return next(new utils_1.ApiError('غير مسموح لك بإكمال هذه العملية', utils_1.UNAUTHORIZED));
+            // return next(new ApiError('غير مسموح لك بإكمال هذه العملية', UNAUTHORIZED));
+            return next(new utils_1.ApiError('Not allowed for you to compelete this process', utils_1.UNAUTHORIZED));
         }
         next();
     }));

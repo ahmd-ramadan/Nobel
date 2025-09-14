@@ -220,8 +220,8 @@ class AxialSearchService {
       ]).allowDiskUse(true).exec();
       
     
-      console.log(points.length);
-      console.log({ rpmId: rpm.id }, { modelId: - 1, rpmId: -1 });
+      // console.log(points.length);
+      // console.log({ rpmId: rpm.id }, { modelId: - 1, rpmId: -1 });
 
       return { 
         model: { name: model.name, _id: model._id }, 

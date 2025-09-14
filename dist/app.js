@@ -45,7 +45,8 @@ app.use(middlewares_1.errorHandler);
 const start = () => __awaiter(void 0, void 0, void 0, function* () {
     try {
         services_1.tokenService.scheduleTokenCleanupTask();
-        yield (0, utils_2.connect)();
+        services_1.trackingService.scheduleTrackingCleanupTask();
+        yield (0, utils_2.connectWithDatabase)();
         const server = app.listen(Number(config_1.port) || utils_1.SERVER.DEFAULT_PORT_NUMBER, '0.0.0.0', () => {
             utils_1.logger.info(`Server is running on ${config_1.port || utils_1.SERVER.DEFAULT_PORT_NUMBER} 🚀`);
         });

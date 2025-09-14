@@ -23,3 +23,6 @@ __exportStar(require("./localStorage.service"), exports);
 __exportStar(require("./rpm.service"), exports);
 __exportStar(require("./model.service"), exports);
 __exportStar(require("./point.service"), exports);
+__exportStar(require("./tracking.service"), exports);
+__exportStar(require("./search.service"), exports);
+__exportStar(require("./axialSearch.service"), exports);

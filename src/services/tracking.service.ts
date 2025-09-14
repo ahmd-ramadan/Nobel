@@ -4,6 +4,7 @@ import { ValidationErrorMessages } from "../constants/error.messages";
 import { ITrackSerachResult, TrackingTypesEnum } from "../interfaces";
 import { trackingRepository } from "../repositories";
 import { ApiError, INTERNAL_SERVER_ERROR, logger, NOT_FOUND, pagenation, UNAUTHORIZED } from "../utils";
+import { Tracking } from '../models';
 
 class TrackingService {
     
@@ -27,7 +28,7 @@ class TrackingService {
 
     async addNewTracking({ type, userId, searchResults = [] }: { type: TrackingTypesEnum, userId: string, searchResults?: ITrackSerachResult[] }){
         try {
-            const addedNewTrack = await this.trackingDataSource.createOne({ type, userId, searchResults });
+            const addedNewTrack = await this.trackingDataSource.createOne({ type, userId, searchResults }, this.populatedArray);
             if(!addedNewTrack) {
                 throw new ApiError(ValidationErrorMessages.ADD_TRACKING_FAILED, INTERNAL_SERVER_ERROR)
             }
@@ -49,7 +50,7 @@ class TrackingService {
 
             const newTrackserachResults = track?.searchResults.map(t => t.model._id.toString() === modelId ? { ... t, isReported: true } : t)
 
-            const addedNewReportForModel = await this.trackingDataSource.updateOne({ _id: trackId }, { searchResults: newTrackserachResults });
+            const addedNewReportForModel = await this.trackingDataSource.updateOne({ _id: trackId }, { searchResults: newTrackserachResults }, this.populatedArray);
             if(!addedNewReportForModel) {
                 throw new ApiError(ValidationErrorMessages.ADD_TRACKING_FAILED, INTERNAL_SERVER_ERROR)
             }
@@ -71,7 +72,7 @@ class TrackingService {
 
             // console.log(query);
 
-            const allTracks = await this.trackingDataSource.findWithPopulate(query, this.populatedArray, { limit, skip, sort: { createdAt: -1 } });
+            const allTracks = await Tracking.find(query).populate(this.populatedArray) //.findWithPopulate(query, this.populatedArray, { limit, skip, sort: { createdAt: -1 } });
             return allTracks;
 
         } catch(err) {

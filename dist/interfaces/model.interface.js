@@ -4,5 +4,5 @@ exports.ModelTypesEnum = void 0;
 var ModelTypesEnum;
 (function (ModelTypesEnum) {
     ModelTypesEnum["AXIAL"] = "axial";
-    ModelTypesEnum["SYNTROPHIC"] = "syntrophic";
+    ModelTypesEnum["CENTRIFUGAL"] = "centrifugal";
 })(ModelTypesEnum || (exports.ModelTypesEnum = ModelTypesEnum = {}));

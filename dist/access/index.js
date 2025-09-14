@@ -17,3 +17,5 @@ Object.defineProperty(exports, "__esModule", { value: true });
 __exportStar(require("./user.access"), exports);
 __exportStar(require("./model.access"), exports);
 __exportStar(require("./point.access"), exports);
+__exportStar(require("./tracking.access"), exports);
+__exportStar(require("./search.access"), exports);

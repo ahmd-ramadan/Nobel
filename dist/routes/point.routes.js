@@ -13,4 +13,5 @@ const router = (0, express_1.Router)();
 exports.pointRouter = router;
 router.use(middlewares_1.isAuthunticated);
 router.route('/')
-    .post((0, middlewares_1.isAuthorized)(access_1.managePoints), (0, express_async_handler_1.default)(controllers_1.pointCtrl.addPointsData));
+    .post((0, middlewares_1.isAuthorized)(access_1.managePoints), (0, express_async_handler_1.default)(controllers_1.pointCtrl.addPointsData))
+    .get((0, middlewares_1.isAuthorized)(access_1.getPoints), (0, express_async_handler_1.default)(controllers_1.pointCtrl.getAllPoints));

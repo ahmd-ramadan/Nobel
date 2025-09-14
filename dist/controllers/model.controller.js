@@ -56,7 +56,8 @@ const getModelById = (req, res) => __awaiter(void 0, void 0, void 0, function* (
 exports.getModelById = getModelById;
 const getAllModels = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const query = validation_1.getAllModelsSchema.parse(req.query);
-    const models = yield model_service_1.modelService.getAllModels(query);
+    const { page, size } = validation_1.paginationSchema.parse(req.query);
+    const models = yield model_service_1.modelService.getAllModels(Object.assign(Object.assign({}, query), { page, size }));
     res.status(utils_1.OK).json({
         success: true,
         message: 'Models retrivied successfully',

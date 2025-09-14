@@ -95,7 +95,8 @@ const cancelUserBlock = (req, res) => __awaiter(void 0, void 0, void 0, function
 });
 exports.cancelUserBlock = cancelUserBlock;
 const getAllUsers = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const admins = yield services_1.userService.getAllUsers();
+    const { page, size } = validation_1.paginationSchema.parse(req.query);
+    const admins = yield services_1.userService.getAllUsers({ page, size });
     res.status(utils_1.OK).json({
         success: true,
         message: error_messages_1.ValidationErrorMessages.USERS_RETRIEVED,
