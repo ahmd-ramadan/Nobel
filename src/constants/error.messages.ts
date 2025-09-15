@@ -17,7 +17,7 @@ export const ValidationErrorMessages = {
     USER_IS_BLOCKED: 'You are blocked by admin. You cannot access the system',
 
     // Auth service errors
-    INVALID_CREDENTIALS: 'Invalid email or password',
+    INVALID_CREDENTIALS: 'Invalid username or password',
     UNAUTHORIZED_ACCESS: 'Unauthorized access',
     LOGIN_FAILED: 'Login failed',
     LOGOUT_FAILED: 'Logout failed',

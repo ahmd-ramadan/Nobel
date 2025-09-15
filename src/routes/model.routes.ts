@@ -26,7 +26,7 @@ router.route('/:_id')
     )
     .patch(
         isAuthorized(manageModel),
-        asyncHandler(modelCtrl.updateModel)
+        asyncHandler(nativeModelCtrl.updateModel)
     )
     .delete(
         isAuthorized(manageModel),

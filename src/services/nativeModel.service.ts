@@ -1,13 +1,15 @@
 import { MongoClient, Db, ObjectId } from 'mongodb';
-import { ICreateModelData, ICreatePointsData, IModel, IPointData } from "../interfaces";
-import { ApiError, CONFLICT, INTERNAL_SERVER_ERROR, } from "../utils";
+import { ICreateModelData, ICreatePointsData, IModel, IModelModel, IPointData } from "../interfaces";
+import { ApiError, CONFLICT, INTERNAL_SERVER_ERROR, NOT_FOUND, } from "../utils";
 import { calculateDiameter, calculateFirstRpm, handleGenerateNextRpm } from "../utils/points.utils";
 import { mongodbUrl } from "../config";
 import { ValidationErrorMessages } from '../constants/error.messages';
 import { Model } from '../models'
+import { model } from 'mongoose';
 
 class NativeModelService {
     private client: MongoClient;
+
     private db!: Db;
 
     constructor() {
@@ -310,7 +312,59 @@ class NativeModelService {
         }
     }
 
-    async deleteModel({ modelId }: { modelId: string }) {
+    async updateModel({ modelId, data }: { modelId: string, data: Partial<ICreateModelData> }) {
+        try {
+            await this.connect();
+            // is model exist
+            const isModelExist = await Model.findById(modelId);
+            if(!isModelExist) {
+                throw new ApiError('Model is not exist', NOT_FOUND)
+            }
+
+            // is name not exist if want update name
+            if(data.name) {
+                const isModelExist = await Model.findOne({ name: data.name });
+                if(isModelExist) {
+                    throw new ApiError('Model name is exist, can not add this name for model', NOT_FOUND)
+                }
+            }
+
+            // Check if any model in process wait some time
+            const areAnotherModelsInProssess = await Model.find({ isComplete: false });
+            if (areAnotherModelsInProssess.length > 0) {
+                throw new ApiError(ValidationErrorMessages.ADD_MODEL_FAILED2, CONFLICT)
+            }
+
+            // Delete old rpms & points
+            await this.deleteModel({ modelId, deletedModel: false });
+
+            // update modelData
+            const updatedModel = await Model.findByIdAndUpdate(modelId, {... data, isComplete: false }, { new: true }) as IModelModel;
+
+            // genereate new rpms models after response and update model isComplete
+            process.nextTick(async () => {
+                try {
+                    console.log(`🚀 Starting native processing for model: ${updatedModel.name} (RPMs ${updatedModel.startRpmNumber}-${updatedModel.endRpmNumber})`);
+                    
+                    const isOk = await this.addRPMWithPoints(updatedModel);
+                    if(isOk === true) await Model.findOneAndUpdate({ _id: updatedModel._id.toString() }, { isComplete: true })
+                    
+                    console.log(`\n💯 Successfully completed native processing for model: ${model.name} 💯`);
+                    
+                } catch (error) {
+                    console.error(`❌ Error in native background processing for model ${model.name}:`, error);
+                }
+            });
+
+            return updatedModel;
+        } catch(err) {
+            console.log(err);
+            if(err instanceof ApiError) throw err;
+            throw new ApiError('Updated model failed', INTERNAL_SERVER_ERROR)
+        }
+    }
+
+    async deleteModel({ modelId, deletedModel = true }: { modelId: string, deletedModel: boolean }) {
         try {
             await this.connect();
 
@@ -340,12 +394,10 @@ class NativeModelService {
             }
 
           
-            // Delete model, RPMs, and points in parallel
-            const [_, rpmResult] = await Promise.all([
-                this.db.collection("models").deleteOne({ _id: new ObjectId(modelId) }),
-                this.db.collection("rpms").deleteMany({ modelId }),
-                // this.db.collection('points').deleteMany({ modelId })
-            ]);
+            // Delete model, RPMs
+            if(deletedModel) await this.db.collection("models").deleteOne({ _id: new ObjectId(modelId) });
+            const rpmResult = await this.db.collection("rpms").deleteMany({ modelId });
+               
             
             // if (!modelResult.deletedCount) {
             //     throw new ApiError('Model not found', NOT_FOUND);

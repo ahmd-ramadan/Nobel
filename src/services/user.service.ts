@@ -126,7 +126,7 @@ class UserService {
     async getAllUsers({ page, size }: { page: number, size: number }) {
         try {
             const { skip, limit } = pagenation({ page, size });
-            return await this.userDataSource.find({ skip, limit });
+            return await this.userDataSource.find({}, { skip, limit });
          } catch (error) {
              if (error instanceof ApiError) {
                  throw error
