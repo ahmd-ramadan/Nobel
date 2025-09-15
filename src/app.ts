@@ -14,9 +14,11 @@ const app: Application = express();
 const morganLogger =
   nodeEnv === SERVER.DEVELOPMENT
     ? morgan('dev')
-    : morgan('combined', {
-        skip: (_, res) => res.statusCode < INTERNAL_SERVER_ERROR,
-      });
+    : morgan('combined'
+        // , {
+        //     skip: (_, res) => res.statusCode < INTERNAL_SERVER_ERROR,
+        // }
+    );
 
 app.get('/', (_, res) => {
     res.send(
