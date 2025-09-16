@@ -5,7 +5,6 @@ import { calculateDiameter, calculateFirstRpm, handleGenerateNextRpm } from "../
 import { mongodbUrl } from "../config";
 import { ValidationErrorMessages } from '../constants/error.messages';
 import { Model } from '../models'
-import { model } from 'mongoose';
 
 class NativeModelService {
     private client: MongoClient;
@@ -335,24 +334,28 @@ class NativeModelService {
                 throw new ApiError(ValidationErrorMessages.ADD_MODEL_FAILED2, CONFLICT)
             }
 
+            const isUpdatedPoints = (Object.values(data).length === 1 && data?.name);
+
             // Delete old rpms & points
-            await this.deleteModel({ modelId, deletedModel: false });
+            if (isUpdatedPoints) {
+                await this.deleteModel({ modelId, deletedModel: false });
+            }
 
             // update modelData
-            const updatedModel = await Model.findByIdAndUpdate(modelId, {... data, isComplete: false }, { new: true }) as IModelModel;
+            const updatedModel = await Model.findByIdAndUpdate(modelId, {... data }, { new: true }) as IModelModel;
 
             // genereate new rpms models after response and update model isComplete
             process.nextTick(async () => {
                 try {
-                    console.log(`🚀 Starting native processing for model: ${updatedModel.name} (RPMs ${updatedModel.startRpmNumber}-${updatedModel.endRpmNumber})`);
+                    if(isUpdatedPoints) {
+                        console.log(`🚀 Starting native processing for model: ${updatedModel.name} (RPMs ${updatedModel.startRpmNumber}-${updatedModel.endRpmNumber})`);
+                        await this.addRPMWithPoints(updatedModel);
+                    }
                     
-                    const isOk = await this.addRPMWithPoints(updatedModel);
-                    if(isOk === true) await Model.findOneAndUpdate({ _id: updatedModel._id.toString() }, { isComplete: true })
-                    
-                    console.log(`\n💯 Successfully completed native processing for model: ${model.name} 💯`);
+                    console.log(`\n💯 Successfully completed native processing for model: ${updatedModel.name} 💯`);
                     
                 } catch (error) {
-                    console.error(`❌ Error in native background processing for model ${model.name}:`, error);
+                    console.error(`❌ Error in native background processing for model ${updatedModel.name}:`, error);
                 }
             });
 
