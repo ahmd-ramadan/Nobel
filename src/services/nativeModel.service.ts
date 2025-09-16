@@ -61,29 +61,29 @@ class NativeModelService {
             }
 
             // Insert model
-            const result = await this.db.collection('models').insertOne({ ...data, isComplete: false });
+            const result = await this.db.collection('models').insertOne({ ...data, isComplete: true });
             const model: IModel = { 
                 ...data, 
-                isComplete: false,
+                isComplete: true,
                 _id: result.insertedId.toString(),
                 createdAt: new Date(),
                 updatedAt: new Date()
             };
 
             // Start background processing
-            process.nextTick(async () => {
+            // process.nextTick(async () => {
                 try {
                     console.log(`🚀 Starting native processing for model: ${model.name} (RPMs ${model.startRpmNumber}-${model.endRpmNumber})`);
                     
-                    const isOk = await this.addRPMWithPoints(model);
-                    if(isOk === true) await Model.findOneAndUpdate({ _id: result.insertedId }, { isComplete: true })
+                    await this.addRPMWithPoints(model);
+                    // if(isOk === true) await Model.findOneAndUpdate({ _id: result.insertedId }, { isComplete: true })
                     
                     console.log(`\n💯 Successfully completed native processing for model: ${model.name} 💯`);
                     
                 } catch (error) {
-                    console.error(`❌ Error in native background processing for model ${model.name}:`, error);
+                    throw new ApiError(`❌ Error in native background processing for model ${model.name}:`, INTERNAL_SERVER_ERROR);
                 }
-            });
+            // });
 
             return model;
         } catch (error) {
@@ -345,7 +345,7 @@ class NativeModelService {
             const updatedModel = await Model.findByIdAndUpdate(modelId, {... data }, { new: true }) as IModelModel;
 
             // genereate new rpms models after response and update model isComplete
-            process.nextTick(async () => {
+            // process.nextTick(async () => {
                 try {
                     if(isUpdatedPoints) {
                         console.log(`🚀 Starting native processing for model: ${updatedModel.name} (RPMs ${updatedModel.startRpmNumber}-${updatedModel.endRpmNumber})`);
@@ -355,9 +355,9 @@ class NativeModelService {
                     console.log(`\n💯 Successfully completed native processing for model: ${updatedModel.name} 💯`);
                     
                 } catch (error) {
-                    console.error(`❌ Error in native background processing for model ${updatedModel.name}:`, error);
+                    throw new ApiError(`❌ Error in native background processing for model ${updatedModel.name}:`, INTERNAL_SERVER_ERROR);
                 }
-            });
+            // });
 
             return updatedModel;
         } catch(err) {
