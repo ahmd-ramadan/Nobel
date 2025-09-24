@@ -43,11 +43,11 @@ class SearchService extends AxialSearchService {
         case FlowRateUnitsEnum.M3S:
           return flowRate
         case FlowRateUnitsEnum.M3H:
-          return flowRate * 3600
+          return flowRate / 3600
         case FlowRateUnitsEnum.LS:
-          return flowRate * 1000
+          return flowRate / 1000
         case FlowRateUnitsEnum.CFM:
-          return flowRate * 1.7
+          return flowRate / 2117.647
         default:
           return flowRate; 
       } 
@@ -58,11 +58,11 @@ class SearchService extends AxialSearchService {
         case StaticPressureUnitsEnum.PA:
           return staticPressure
         case StaticPressureUnitsEnum.INWC:
-          return staticPressure / 250
+          return staticPressure * 250
         case StaticPressureUnitsEnum.KPA:
-          return staticPressure / 1000
+          return staticPressure * 1000
         case StaticPressureUnitsEnum.BAR:
-          return staticPressure / 100000
+          return staticPressure * 100000
         default:
           return staticPressure
       }

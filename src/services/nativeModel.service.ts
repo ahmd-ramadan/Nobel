@@ -94,10 +94,12 @@ class NativeModelService {
 
     async addRPMWithPoints(model: IModel) {
         try {
-            const { _id: modelId, startRpmNumber, endRpmNumber, name } = model;
+            const { _id: modelId, startRpmNumber, endRpmNumber, factor } = model;
+
+            console.log(model);
 
             // Calculate diameter for this model
-            const diameter = calculateDiameter(parseInt(name));
+            const diameter = calculateDiameter(factor);
 
             const firstRpmPoints = await this.generateFirstRpmPoints({ model, diameter });
 
@@ -165,6 +167,8 @@ class NativeModelService {
             // console.log("Next Generated Rpms: ", allRpms);
             const allRpmsAdded = await this.db.collection('rpms').insertMany(allRpms);
             
+            console.log("Added Rpms: ", allRpmsAdded.insertedCount);
+
             let rpmIndex = 0;
             for (let batchStart = startRpmNumber + 1; batchStart <= endRpmNumber; batchStart += batchSize) {
                 const batchEnd = Math.min(batchStart + batchSize - 1, endRpmNumber);
@@ -236,7 +240,7 @@ class NativeModelService {
 
     async generateFirstRpmPoints({ model, diameter }: { model: IModel, diameter: number }) {
         try {   
-            const { _id: modelId, startRpmNumber, points, name } = model;
+            const { _id: modelId, startRpmNumber, points } = model;
             
             // Create first RPM
             const firstRpmResult = await this.db.collection('rpms').insertOne({ 
@@ -258,6 +262,7 @@ class NativeModelService {
             
             return firstRpmPoints; // <-- return the points array
         } catch(err) {
+            console.log(err);
             if(err instanceof ApiError) throw err
             throw new ApiError('Failed to generate and add first rpm points', INTERNAL_SERVER_ERROR)
         }
@@ -320,6 +325,8 @@ class NativeModelService {
                 throw new ApiError('Model is not exist', NOT_FOUND)
             }
 
+            console.log(data);
+
             // is name not exist if want update name
             if(data.name) {
                 const isModelExist = await Model.findOne({ name: data.name });
@@ -334,7 +341,7 @@ class NativeModelService {
                 throw new ApiError(ValidationErrorMessages.ADD_MODEL_FAILED2, CONFLICT)
             }
 
-            const isUpdatedPoints = (Object.values(data).length === 1 && data?.name);
+            const isUpdatedPoints = !(Object.values(data).length === 1 && data?.name);
 
             // Delete old rpms & points
             if (isUpdatedPoints) {
@@ -372,13 +379,15 @@ class NativeModelService {
             await this.connect();
 
             const allRpms = await this.db.collection("rpms")
-            .find({ modelId })
+            .find({ modelId: new ObjectId(modelId) })
             .project({ _id: 1 })
             .toArray();
 
             let rpmsIdx = allRpms.length - 1;
             let batchSize = 10;  // 10 * 1000 = 10000
             let deletedPromises = [];
+
+            console.log("deleted Rpms: ", allRpms.length);
 
             if(allRpms.length > 0) {
                 do {
@@ -389,7 +398,7 @@ class NativeModelService {
 
                     if(batchSize == 0) {
                         await Promise.all(deletedPromises);
-                        // console.log("Deleted Ok");
+                        console.log("Deleted Ok");
                         deletedPromises = [];
                         batchSize = 10;
                     }
@@ -399,7 +408,7 @@ class NativeModelService {
           
             // Delete model, RPMs
             if(deletedModel) await this.db.collection("models").deleteOne({ _id: new ObjectId(modelId) });
-            const rpmResult = await this.db.collection("rpms").deleteMany({ modelId });
+            const rpmResult = await this.db.collection("rpms").deleteMany({ modelId: new ObjectId(modelId) });
                
             
             // if (!modelResult.deletedCount) {
