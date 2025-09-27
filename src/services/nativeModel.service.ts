@@ -319,30 +319,48 @@ class NativeModelService {
                 return { insertedCount: 0 };
             }
             
-            // Delete existing points
-            await this.db.collection('points').deleteMany({ 
-                modelId: new ObjectId(modelId), 
-                rpmId: new ObjectId(rpmId) 
-            });
+            // Use transaction to ensure data consistency
+            const session = this.client.startSession();
             
-            // Prepare documents for bulk insert
-            const documents = points.map(point => ({
-                modelId: new ObjectId(modelId),
-                rpmId: new ObjectId(rpmId),
-                ...point
-            }));
-            
-            // Bulk insert all points at once
-            const result = await this.db.collection('points').insertMany(documents, { 
-                writeConcern: { w: 'majority', j: true } 
-            });
-            
-            // Force refresh connection to ensure data is visible
-            await this.db.admin().ping();
-            
-            console.log(`✅ Added ${result.insertedCount} points for RPM ${rpmId}`);
-            
-            return result;
+            try {
+                await session.withTransaction(async () => {
+                    // Delete existing points
+                    await this.db.collection('points').deleteMany({ 
+                        modelId: new ObjectId(modelId), 
+                        rpmId: new ObjectId(rpmId) 
+                    }, { session });
+                    
+                    // Prepare documents for bulk insert
+                    const documents = points.map(point => ({
+                        modelId: new ObjectId(modelId),
+                        rpmId: new ObjectId(rpmId),
+                        ...point
+                    }));
+                    
+                    // Bulk insert all points at once
+                    const result = await this.db.collection('points').insertMany(documents, { 
+                        writeConcern: { w: 'majority', j: true },
+                        session
+                    });
+                    
+                    console.log(`✅ Added ${result.insertedCount} points for RPM ${rpmId} in transaction`);
+                    
+                    return result;
+                });
+                
+                // Verify data was actually inserted after transaction
+                const verifyCount = await this.db.collection('points').countDocuments({ 
+                    modelId: new ObjectId(modelId), 
+                    rpmId: new ObjectId(rpmId) 
+                });
+                
+                console.log(`✅ Transaction completed. Verified ${verifyCount} points for RPM ${rpmId}`);
+                
+                return { insertedCount: verifyCount };
+                
+            } finally {
+                await session.endSession();
+            }
             
         } catch (error) {
             console.error(`Error adding points for RPM ${data.rpmId} (attempt ${retryCount + 1}/${maxRetries + 1}):`, error);

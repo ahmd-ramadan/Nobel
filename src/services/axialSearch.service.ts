@@ -13,6 +13,11 @@ class AxialSearchService {
             const mongoose = require('mongoose');
             if (mongoose.connection.readyState === 1) {
                 await mongoose.connection.db.admin().ping();
+                
+                // Force collection refresh
+                await mongoose.connection.db.collection('points').findOne({});
+                await mongoose.connection.db.collection('rpms').findOne({});
+                await mongoose.connection.db.collection('models').findOne({});
             }
         } catch (error) {
             console.log('Connection refresh failed:', error);
@@ -76,7 +81,6 @@ class AxialSearchService {
             throw new ApiError('axial فشل عملية البحث', INTERNAL_SERVER_ERROR) 
         }
     }
-
     private async fetchModelsByType({ axialType }: { axialType: AxialTypesEnum }) {
         try {
             const modelsTypeRange = AxialModelsAndOptionsBasedOnType[axialType].split('-');
@@ -95,8 +99,7 @@ class AxialSearchService {
             if(err instanceof ApiError) throw err;
             throw new ApiError('axial فشل عملية البحث', INTERNAL_SERVER_ERROR) 
         }
-    } 
-
+    }
     private async fetchRpmsByOptionAndModels({ axialOption, modelsIds }: { axialOption: AxialOptionsEnum, modelsIds: string[] }) {
       try {
         const ranges = AxialRPMsBasedOnOption[axialOption]
@@ -122,7 +125,6 @@ class AxialSearchService {
         throw new ApiError('axial فشل عملية البحث', INTERNAL_SERVER_ERROR);
       }
     }
-    
     private async findClosestPoint(
       { model, rpms, flowRate, staticPressure }: 
       { model: IModelModel, rpms: any[], flowRate: number, staticPressure: number }): Promise<ISearchResult | null> {
@@ -138,23 +140,24 @@ class AxialSearchService {
 
       // console.log("dynamicPressure: ", dynamicPressure, "\ttargetTotalPressure: ", targetTotalPressure, "\tdiameter: ", diameter, "\n", model)
       
-      const results = await Point.aggregate
-      ([
+      // Use native MongoDB driver for aggregation
+      const mongoose = require('mongoose');
+      const db = mongoose.connection.db;
+      
+      // Debug: Check if points exist for this RPM
+      const debugCount = await db.collection('points').countDocuments({ 
+        rpmId: { $in: rpmsIds.map(id => new mongoose.Types.ObjectId(id)) } 
+      });
+      console.log(`🔍 Debug: Found ${debugCount} points for RPMs: ${rpmsIds.slice(0, 3).join(', ')}...`);
+      
+      const results = await db.collection('points').aggregate([
         {
           $match: {
-            rpmId: { $in: rpmsIds }, 
+            rpmId: { $in: rpmsIds.map(id => new mongoose.Types.ObjectId(id)) }, 
             flowRate: { $gte: flowRate * 0.9, $lte: flowRate * 1.1 },
             totalPressure: { $gte: targetTotalPressure * 0.9, $lte: targetTotalPressure * 1.1 }
           }
         },
-        // {
-        //   $project: {
-        //     modelId: 1,
-        //     rpmId: 1,
-        //     flowRate: 1,
-        //     totalPressure: 1
-        //   }
-        // },
         {
           $addFields: {
             flowRateError: {
@@ -200,7 +203,10 @@ class AxialSearchService {
         {
           $limit: 1 // best point across all candidates
         }
-      ]).read("primary").allowDiskUse(true).readConcern("majority").hint({}).exec()
+      ], {
+        readConcern: { level: 'majority' },
+        allowDiskUse: true
+      }).toArray()
 
       console.log(results.length);
       
@@ -216,12 +222,15 @@ class AxialSearchService {
       }
 
     }
-
     private async generateSearchAxialResponse({ result, model, rpm }: { result: any, model: IModelModel, rpm: any }): Promise<ISearchResult> {
-      const points = await Point.aggregate([
+      // Use native MongoDB driver for aggregation
+      const mongoose = require('mongoose');
+      const db = mongoose.connection.db;
+      
+      const points = await db.collection('points').aggregate([
         {
           $match: {
-            rpmId: rpm.id
+            rpmId: new mongoose.Types.ObjectId(rpm.id)
           }
         },
         { 
@@ -232,7 +241,10 @@ class AxialSearchService {
         {
           $limit: 1000
         }
-      ]).read("primary").allowDiskUse(true).readConcern("majority").hint({}).exec();
+      ], {
+        readConcern: { level: 'majority' },
+        allowDiskUse: true
+      }).toArray();
       
     
       // console.log(points.length);
