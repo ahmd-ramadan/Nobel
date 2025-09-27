@@ -20,8 +20,11 @@ class NativeModelService {
             socketTimeoutMS: 60000,
             serverSelectionTimeoutMS: 60000,
             retryWrites: true,
-            w: 1,
-            journal: true
+            w: 'majority', // Ensure writes are acknowledged by majority
+            journal: true,
+            readConcern: { level: 'majority' }, // Read from majority
+            writeConcern: { w: 'majority', j: true }, // Write with journal
+            readPreference: 'primary' // Always read from primary to avoid stale data
         });
     }
 
@@ -29,6 +32,10 @@ class NativeModelService {
         if (!this.db) {
             await this.client.connect();
             this.db = this.client.db();
+            
+            // Set read preference to primary to avoid stale reads
+            // this.db.readPreference = 'primary'; // This is read-only, handled in connection options
+            
             console.log('✅ Native MongoDB driver connected');
         }
     }
@@ -42,7 +49,9 @@ class NativeModelService {
 
     async isModelExistsByName(modelName: string) {
         await this.connect();
-        return await this.db.collection('models').findOne({ name: modelName });
+        return await this.db.collection('models').findOne({ name: modelName }, { 
+            readConcern: { level: 'majority' } 
+        });
     }
 
     async addModel(data: ICreateModelData) {
@@ -56,7 +65,9 @@ class NativeModelService {
             }
             
             // Check if any model in process using native driver
-            const areAnotherModelsInProcess = await this.db.collection('models').findOne({ isComplete: false });
+            const areAnotherModelsInProcess = await this.db.collection('models').findOne({ isComplete: false }, { 
+                readConcern: { level: 'majority' } 
+            });
             if (areAnotherModelsInProcess) {
                 throw new ApiError(ValidationErrorMessages.ADD_MODEL_FAILED2, CONFLICT)
             }
@@ -67,6 +78,8 @@ class NativeModelService {
                 isComplete: false,
                 createdAt: new Date(),
                 updatedAt: new Date()
+            }, { 
+                writeConcern: { w: 'majority', j: true } 
             });
             
             const model: IModel = { 
@@ -132,7 +145,7 @@ class NativeModelService {
             const firstRpmPoints = await this.generateFirstRpmPoints({ model, diameter });
 
             // Process remaining RPMs in batches
-            const batchSize = 10; // Can be larger with native driver
+            const batchSize = 50; // Increased for better performance with native driver
             
             // for (let batchStart = startRpmNumber + 1; batchStart <= endRpmNumber; batchStart += batchSize) {
             //     const batchEnd = Math.min(batchStart + batchSize - 1, endRpmNumber);
@@ -191,14 +204,16 @@ class NativeModelService {
             // Add Rpms in one operations not more than 3000 rpms in one model
             // From startRpm + 1 to endRpm
            
-            const allRpms = Array.from({ length: endRpmNumber - startRpmNumber }, (_, rpm) => ({ modelId, rpm: rpm + startRpmNumber + 1 }));
+            const allRpms = Array.from({ length: endRpmNumber - startRpmNumber }, (_, rpm) => ({ modelId: new ObjectId(modelId), rpm: rpm + startRpmNumber + 1 }));
             
             if (allRpms.length === 0) {
                 console.log("No additional RPMs to process");
                 return true;
             }
             
-            const allRpmsAdded = await this.db.collection('rpms').insertMany(allRpms);
+            const allRpmsAdded = await this.db.collection('rpms').insertMany(allRpms, { 
+                writeConcern: { w: 'majority', j: true } 
+            });
             console.log(`Added ${allRpmsAdded.insertedCount} RPMs for model ${model.name}`);
 
             let rpmIndex = 0;
@@ -248,7 +263,7 @@ class NativeModelService {
                 
                 // Small delay between batches to prevent overwhelming the database
                 if (batchEnd < endRpmNumber) {
-                    await new Promise(resolve => setTimeout(resolve, 100));
+                    await new Promise(resolve => setTimeout(resolve, 50)); // Reduced delay for better performance
                 }
             }
 
@@ -267,8 +282,10 @@ class NativeModelService {
             
             // Create first RPM
             const firstRpmResult = await this.db.collection('rpms').insertOne({ 
-                modelId, 
+                modelId: new ObjectId(modelId), 
                 rpm: startRpmNumber 
+            }, { 
+                writeConcern: { w: 'majority', j: true } 
             });
             const firstRpm = { _id: firstRpmResult.insertedId, modelId, rpm: startRpmNumber };
             
@@ -304,17 +321,25 @@ class NativeModelService {
             }
             
             // Delete existing points
-            await this.db.collection('points').deleteMany({ modelId, rpmId });
+            await this.db.collection('points').deleteMany({ 
+                modelId: new ObjectId(modelId), 
+                rpmId: new ObjectId(rpmId) 
+            });
             
             // Prepare documents for bulk insert
             const documents = points.map(point => ({
-                modelId,
-                rpmId,
+                modelId: new ObjectId(modelId),
+                rpmId: new ObjectId(rpmId),
                 ...point
             }));
             
             // Bulk insert all points at once
-            const result = await this.db.collection('points').insertMany(documents);
+            const result = await this.db.collection('points').insertMany(documents, { 
+                writeConcern: { w: 'majority', j: true } 
+            });
+            
+            // Force refresh connection to ensure data is visible
+            await this.db.admin().ping();
             
             console.log(`✅ Added ${result.insertedCount} points for RPM ${rpmId}`);
             
@@ -392,6 +417,9 @@ class NativeModelService {
                         updatedAt: new Date(),
                         isComplete: isUpdatedPoints ? false : isModelExist.isComplete
                     } 
+                },
+                { 
+                    writeConcern: { w: 'majority', j: true } 
                 }
             );
 
@@ -476,7 +504,8 @@ class NativeModelService {
                     const rpmIds = batch.map(rpm => rpm._id);
                     deletedPromises.push(
                         this.db.collection("points").deleteMany({ 
-                            rpmId: { $in: rpmIds } 
+                            rpmId: { $in: rpmIds },
+                            modelId: new ObjectId(modelId)
                         })
                     );
 
@@ -497,6 +526,8 @@ class NativeModelService {
             // Delete RPMs
             const rpmResult = await this.db.collection("rpms").deleteMany({ 
                 modelId: new ObjectId(modelId) 
+            }, { 
+                writeConcern: { w: 'majority', j: true } 
             });
             console.log(`✅ Deleted ${rpmResult.deletedCount} RPMs`);
 
@@ -504,6 +535,8 @@ class NativeModelService {
             if(deletedModel) {
                 const modelResult = await this.db.collection("models").deleteOne({ 
                     _id: new ObjectId(modelId) 
+                }, { 
+                    writeConcern: { w: 'majority', j: true } 
                 });
                 
                 if (modelResult.deletedCount === 0) {
