@@ -185,7 +185,7 @@ class AxialSearchService {
         {
           $limit: 1 // best point across all candidates
         }
-      ]).allowDiskUse(true).exec()
+      ]).read("primary").allowDiskUse(true).exec()
 
       console.log(results.length);
       
