@@ -106,7 +106,7 @@ class PointService {
             {
               $limit: 1000
             }
-          ]).allowDiskUse(true).exec();
+          ]).read("primary").allowDiskUse(true).readConcern("majority").hint({}).exec();
     }
 
     // async updateModel({ modelId, data }: { modelId: string, data: Partial<ICreateModelData> }) {

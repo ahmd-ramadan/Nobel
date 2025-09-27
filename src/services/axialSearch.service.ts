@@ -7,6 +7,18 @@ class AxialSearchService {
 
     constructor(){}
     
+    private async forceRefreshConnection() {
+        try {
+            // Force Mongoose to refresh connection and clear any caches
+            const mongoose = require('mongoose');
+            if (mongoose.connection.readyState === 1) {
+                await mongoose.connection.db.admin().ping();
+            }
+        } catch (error) {
+            console.log('Connection refresh failed:', error);
+        }
+    }
+    
     /* Steps
       1. get all models in axialModelType
       2. get all rpms in axialModelOption
@@ -16,6 +28,9 @@ class AxialSearchService {
     protected async axialSearchNew(searchInputs: ISearchInput): Promise<ISearchResult[]> {
         try {
             const { staticPressure, flowRate, axialOption, axialType } = searchInputs;
+            
+            // Force refresh connection to get latest data
+            await this.forceRefreshConnection();
             
             const models: any[] = await this.fetchModelsByType({ axialType: axialType as AxialTypesEnum});
             // const modelsIds: string[] = models.map(m => m._id.toString());
@@ -72,7 +87,7 @@ class AxialSearchService {
             const models = await Model.find({
                 type: ModelTypesEnum.AXIAL,
                 factor: { $gte: startModel, $lte: endModel }
-            })
+            }).lean() // Use lean() to bypass Mongoose caching
             
             return models;
         } catch(err) {
@@ -99,7 +114,7 @@ class AxialSearchService {
         const rpms = await rpmRepository.find({
           $or: conditions,
           // ...(modelsIds.length ? { modelId: { $in: modelsIds } } : {})
-        });
+        }); // Repository doesn't support lean(), but we'll use readConcern
     
         return rpms;
       } catch(err) {
@@ -185,7 +200,7 @@ class AxialSearchService {
         {
           $limit: 1 // best point across all candidates
         }
-      ]).read("primary").allowDiskUse(true).exec()
+      ]).read("primary").allowDiskUse(true).readConcern("majority").hint({}).exec()
 
       console.log(results.length);
       
@@ -217,7 +232,7 @@ class AxialSearchService {
         {
           $limit: 1000
         }
-      ]).allowDiskUse(true).exec();
+      ]).read("primary").allowDiskUse(true).readConcern("majority").hint({}).exec();
       
     
       // console.log(points.length);
