@@ -1,124 +1,62 @@
-import { MongoClient, Db, ObjectId } from 'mongodb';
 import { ICreateModelData, ICreatePointsData, IModel, IModelModel, IPointData } from "../interfaces";
 import { ApiError, CONFLICT, INTERNAL_SERVER_ERROR, NOT_FOUND, } from "../utils";
 import { calculateDiameter, calculateFirstRpm, handleGenerateNextRpm } from "../utils/points.utils";
-import { mongodbUrl } from "../config";
 import { ValidationErrorMessages } from '../constants/error.messages';
-import { Model } from '../models'
+import { Model } from '../models';
+import { RPM } from '../models';
+import { Point } from '../models';
 
 class NativeModelService {
-    private client: MongoClient;
-
-    private db!: Db;
-
-    constructor() {
-        this.client = new MongoClient(mongodbUrl, {
-            // Optimized for heavy operations
-            maxPoolSize: 100,
-            minPoolSize: 20,
-            connectTimeoutMS: 60000,
-            socketTimeoutMS: 60000,
-            serverSelectionTimeoutMS: 60000,
-            retryWrites: true,
-            w: 'majority', // Ensure writes are acknowledged by majority
-            journal: true,
-            readConcern: { level: 'majority' }, // Read from majority
-            writeConcern: { w: 'majority', j: true }, // Write with journal
-            readPreference: 'primary' // Always read from primary to avoid stale data
-        });
-    }
-
-    async connect() {
-        if (!this.db) {
-            await this.client.connect();
-            this.db = this.client.db();
-            
-            // Set read preference to primary to avoid stale reads
-            // this.db.readPreference = 'primary'; // This is read-only, handled in connection options
-            
-            console.log('✅ Native MongoDB driver connected');
-        }
-    }
-
-    async disconnect() {
-        if (this.client) {
-            await this.client.close();
-            console.log('✅ Native MongoDB driver disconnected');
-        }
-    }
+    constructor() {}
 
     async isModelExistsByName(modelName: string) {
-        await this.connect();
-        return await this.db.collection('models').findOne({ name: modelName }, { 
-            readConcern: { level: 'majority' } 
-        });
+        return await Model.findOne({ name: modelName });
     }
 
     async addModel(data: ICreateModelData) {
         try {
-            await this.connect();
-            
-            // Check if model exists using native driver
+            // Check if model exists
             const isModelExist = await this.isModelExistsByName(data.name);
             if (isModelExist) {
                 throw new ApiError(ValidationErrorMessages.MODEL_EXIST, CONFLICT)
             }
             
-            // Check if any model in process using native driver
-            const areAnotherModelsInProcess = await this.db.collection('models').findOne({ isComplete: false }, { 
-                readConcern: { level: 'majority' } 
-            });
+            // Check if any model in process
+            const areAnotherModelsInProcess = await Model.findOne({ isComplete: false });
             if (areAnotherModelsInProcess) {
                 throw new ApiError(ValidationErrorMessages.ADD_MODEL_FAILED2, CONFLICT)
             }
 
-            // Insert model with isComplete: false initially
-            const result = await this.db.collection('models').insertOne({ 
+            // Create model with isComplete: false initially
+            const model = new Model({ 
                 ...data, 
-                isComplete: false,
-                createdAt: new Date(),
-                updatedAt: new Date()
-            }, { 
-                writeConcern: { w: 'majority', j: true } 
+                isComplete: false
             });
             
-            const model: IModel = { 
-                ...data, 
-                isComplete: false,
-                _id: result.insertedId.toString(),
-                createdAt: new Date(),
-                updatedAt: new Date()
-            };
+            await model.save();
 
             // Start background processing
             process.nextTick(async () => {
                 try {
-                    console.log(`🚀 Starting native processing for model: ${model.name} (RPMs ${model.startRpmNumber}-${model.endRpmNumber})`);
+                    console.log(`🚀 Starting Mongoose processing for model: ${model.name} (RPMs ${model.startRpmNumber}-${model.endRpmNumber})`);
                     
                     await this.addRPMWithPoints(model);
                     
-                    // Update model to complete using native driver
-                    await this.db.collection('models').updateOne(
-                        { _id: result.insertedId }, 
-                        { $set: { isComplete: true, updatedAt: new Date() } }
-                    );
+                    // Update model to complete
+                    await Model.findByIdAndUpdate(model._id, { 
+                        isComplete: true 
+                    });
                     
-                    console.log(`\n💯 Successfully completed native processing for model: ${model.name} 💯`);
+                    console.log(`\n💯 Successfully completed Mongoose processing for model: ${model.name} 💯`);
                     
                 } catch (error) {
-                    console.error(`❌ Error in native background processing for model ${model.name}:`, error);
+                    console.error(`❌ Error in Mongoose background processing for model ${model.name}:`, error);
                     // Update model to indicate failure
                     try {
-                        await this.db.collection('models').updateOne(
-                            { _id: result.insertedId }, 
-                            { 
-                                $set: { 
-                                    isComplete: false, 
-                                    error: error instanceof Error ? error.message : 'Unknown error',
-                                    updatedAt: new Date()
-                                } 
-                            }
-                        );
+                        await Model.findByIdAndUpdate(model._id, { 
+                            isComplete: false, 
+                            error: error instanceof Error ? error.message : 'Unknown error'
+                        });
                     } catch (updateError) {
                         console.error('Failed to update model error status:', updateError);
                     }
@@ -145,7 +83,7 @@ class NativeModelService {
             const firstRpmPoints = await this.generateFirstRpmPoints({ model, diameter });
 
             // Process remaining RPMs in batches
-            const batchSize = 50; // Increased for better performance with native driver
+            const batchSize = 20; // Optimized for Mongoose performance
             
             // for (let batchStart = startRpmNumber + 1; batchStart <= endRpmNumber; batchStart += batchSize) {
             //     const batchEnd = Math.min(batchStart + batchSize - 1, endRpmNumber);
@@ -201,46 +139,39 @@ class NativeModelService {
             //     }
             // }
 
-            // Add Rpms in one operations not more than 3000 rpms in one model
-            // From startRpm + 1 to endRpm
-           
-            const allRpms = Array.from({ length: endRpmNumber - startRpmNumber }, (_, rpm) => ({ modelId: new ObjectId(modelId), rpm: rpm + startRpmNumber + 1 }));
+            // Add Rpms in batches for better Mongoose performance
+            const totalRpms = endRpmNumber - startRpmNumber;
             
-            if (allRpms.length === 0) {
+            if (totalRpms === 0) {
                 console.log("No additional RPMs to process");
                 return true;
             }
             
-            const allRpmsAdded = await this.db.collection('rpms').insertMany(allRpms, { 
-                writeConcern: { w: 'majority', j: true } 
-            });
-            console.log(`Added ${allRpmsAdded.insertedCount} RPMs for model ${model.name}`);
+            // Create RPMs in batches
+            const rpmPromises = [];
+            for (let rpm = startRpmNumber + 1; rpm <= endRpmNumber; rpm++) {
+                rpmPromises.push(new RPM({ modelId, rpm }).save());
+            }
+            
+            await Promise.all(rpmPromises);
+            console.log(`Added ${totalRpms} RPMs for model ${model.name}`);
 
-            let rpmIndex = 0;
+            // Process points for each RPM in batches
             for (let batchStart = startRpmNumber + 1; batchStart <= endRpmNumber; batchStart += batchSize) {
                 const batchEnd = Math.min(batchStart + batchSize - 1, endRpmNumber);
                 
                 console.log(`Processing RPMs ${batchStart} to ${batchEnd}...`);
                 
-                // Create RPMs for this batch
-                // const rpmOperations = [];
-                // for (let rpm = batchStart; rpm <= batchEnd; rpm++) {
-                //     rpmOperations.push({
-                //         insertOne: {
-                //             document: { modelId, rpm }
-                //         }
-                //     });
-                // }
+                const batchPromises = [];
                 
-                // const rpmResults = await this.db.collection('rpms').bulkWrite(rpmOperations);
-                
-                // Generate and insert points for this batch
-                
-                const pointOperations: any[] = [];
-                const promisesAll = [];
-
                 for (let rpm = batchStart; rpm <= batchEnd; rpm++) {
-                    const rpmId = allRpmsAdded.insertedIds[rpmIndex].toString();
+                    // Find the RPM document
+                    const rpmDoc = await RPM.findOne({ modelId, rpm });
+                    if (!rpmDoc) {
+                        console.error(`RPM ${rpm} not found for model ${modelId}`);
+                        continue;
+                    }
+                    
                     const nextRpmPoints = handleGenerateNextRpm(
                         firstRpmPoints as IPointData[],
                         startRpmNumber,
@@ -248,13 +179,16 @@ class NativeModelService {
                         diameter
                     ) as IPointData[];
 
-                    promisesAll.push(this.addAllPointsForRpm({ modelId, rpmId, points: nextRpmPoints }));
-                    rpmIndex++;
+                    batchPromises.push(this.addAllPointsForRpm({ 
+                        modelId, 
+                        rpmId: rpmDoc._id.toString(), 
+                        points: nextRpmPoints 
+                    }));
                 }
                 
                 // Process all promises for this batch
                 try {
-                    await Promise.all(promisesAll);
+                    await Promise.all(batchPromises);
                     console.log(`✅ Completed processing RPMs ${batchStart}-${batchEnd} for model ${model.name}`);
                 } catch (batchError) {
                     console.error(`❌ Error processing batch ${batchStart}-${batchEnd}:`, batchError);
@@ -263,7 +197,7 @@ class NativeModelService {
                 
                 // Small delay between batches to prevent overwhelming the database
                 if (batchEnd < endRpmNumber) {
-                    await new Promise(resolve => setTimeout(resolve, 50)); // Reduced delay for better performance
+                    await new Promise(resolve => setTimeout(resolve, 100)); // Slightly longer delay for Mongoose
                 }
             }
 
@@ -281,26 +215,22 @@ class NativeModelService {
             const { _id: modelId, startRpmNumber, points } = model;
             
             // Create first RPM
-            const firstRpmResult = await this.db.collection('rpms').insertOne({ 
-                modelId: new ObjectId(modelId), 
+            const firstRpm = new RPM({ 
+                modelId, 
                 rpm: startRpmNumber 
-            }, { 
-                writeConcern: { w: 'majority', j: true } 
             });
-            const firstRpm = { _id: firstRpmResult.insertedId, modelId, rpm: startRpmNumber };
+            await firstRpm.save();
             
             // Generate first rpm points
             const firstRpmPoints = calculateFirstRpm(points, startRpmNumber, diameter);
 
-            const result = await this.addAllPointsForRpm({ 
+            await this.addAllPointsForRpm({ 
                 modelId, 
                 rpmId: firstRpm._id.toString(), 
                 points: firstRpmPoints as IPointData[] 
             });
-
-            // console.log(result)
             
-            return firstRpmPoints; // <-- return the points array
+            return firstRpmPoints;
         } catch(err) {
             console.log(err);
             if(err instanceof ApiError) throw err
@@ -321,29 +251,21 @@ class NativeModelService {
             }
             
             // Delete existing points
-            await this.db.collection('points').deleteMany({ 
-                modelId: new ObjectId(modelId), 
-                rpmId: new ObjectId(rpmId) 
-            });
+            await Point.deleteMany({ modelId, rpmId });
             
             // Prepare documents for bulk insert
             const documents = points.map(point => ({
-                modelId: new ObjectId(modelId),
-                rpmId: new ObjectId(rpmId),
+                modelId,
+                rpmId,
                 ...point
             }));
             
-            // Bulk insert all points at once
-            const result = await this.db.collection('points').insertMany(documents, { 
-                writeConcern: { w: 'majority', j: true } 
-            });
+            // Bulk insert all points at once using Mongoose
+            const result = await Point.insertMany(documents);
             
-            // Force refresh connection to ensure data is visible
-            await this.db.admin().ping();
+            console.log(`✅ Added ${result.length} points for RPM ${rpmId}`);
             
-            console.log(`✅ Added ${result.insertedCount} points for RPM ${rpmId}`);
-            
-            return result;
+            return { insertedCount: result.length };
             
         } catch (error) {
             console.error(`Error adding points for RPM ${data.rpmId} (attempt ${retryCount + 1}/${maxRetries + 1}):`, error);
@@ -371,10 +293,8 @@ class NativeModelService {
 
     async updateModel({ modelId, data }: { modelId: string, data: Partial<ICreateModelData> }) {
         try {
-            await this.connect();
-            
-            // Check if model exists using native driver
-            const isModelExist = await this.db.collection('models').findOne({ _id: new ObjectId(modelId) });
+            // Check if model exists
+            const isModelExist = await Model.findById(modelId);
             if(!isModelExist) {
                 throw new ApiError('Model is not exist', NOT_FOUND)
             }
@@ -383,19 +303,19 @@ class NativeModelService {
 
             // Check if name exists if updating name
             if(data.name) {
-                const existingModelWithName = await this.db.collection('models').findOne({ 
+                const existingModelWithName = await Model.findOne({ 
                     name: data.name, 
-                    _id: { $ne: new ObjectId(modelId) } 
+                    _id: { $ne: modelId } 
                 });
                 if(existingModelWithName) {
                     throw new ApiError('Model name is exist, can not add this name for model', CONFLICT)
                 }
             }
 
-            // Check if any model in process using native driver
-            const areAnotherModelsInProcess = await this.db.collection('models').findOne({ 
+            // Check if any model in process
+            const areAnotherModelsInProcess = await Model.findOne({ 
                 isComplete: false,
-                _id: { $ne: new ObjectId(modelId) }
+                _id: { $ne: modelId }
             });
             if (areAnotherModelsInProcess) {
                 throw new ApiError(ValidationErrorMessages.ADD_MODEL_FAILED2, CONFLICT)
@@ -408,62 +328,41 @@ class NativeModelService {
                 await this.deleteModel({ modelId, deletedModel: false });
             }
 
-            // Update model data using native driver
-            const updateResult = await this.db.collection('models').updateOne(
-                { _id: new ObjectId(modelId) },
+            // Update model data using Mongoose
+            const updatedModel = await Model.findByIdAndUpdate(
+                modelId,
                 { 
-                    $set: { 
-                        ...data, 
-                        updatedAt: new Date(),
-                        isComplete: isUpdatedPoints ? false : isModelExist.isComplete
-                    } 
+                    ...data, 
+                    isComplete: isUpdatedPoints ? false : isModelExist.isComplete
                 },
-                { 
-                    writeConcern: { w: 'majority', j: true } 
-                }
+                { new: true }
             );
 
-            if (updateResult.modifiedCount === 0) {
-                throw new ApiError('Model update failed', INTERNAL_SERVER_ERROR);
-            }
-
-            // Get updated model
-            const updatedModel = await this.db.collection('models').findOne({ _id: new ObjectId(modelId) });
-
             if (!updatedModel) {
-                throw new ApiError('Model not found after update', NOT_FOUND);
+                throw new ApiError('Model update failed', INTERNAL_SERVER_ERROR);
             }
 
             // Generate new rpms models after response and update model isComplete
             process.nextTick(async () => {
                 try {
                     if(isUpdatedPoints) {
-                        console.log(`🚀 Starting native processing for model: ${updatedModel.name} (RPMs ${updatedModel.startRpmNumber}-${updatedModel.endRpmNumber})`);
-                        await this.addRPMWithPoints(updatedModel as unknown as IModel);
+                        console.log(`🚀 Starting Mongoose processing for model: ${updatedModel.name} (RPMs ${updatedModel.startRpmNumber}-${updatedModel.endRpmNumber})`);
+                        await this.addRPMWithPoints(updatedModel as IModel);
                         
-                        // Update model to complete using native driver
-                        await this.db.collection('models').updateOne(
-                            { _id: new ObjectId(modelId) },
-                            { $set: { isComplete: true, updatedAt: new Date() } }
-                        );
+                        // Update model to complete
+                        await Model.findByIdAndUpdate(modelId, { isComplete: true });
                     }
                     
-                    console.log(`\n💯 Successfully completed native processing for model: ${updatedModel.name} 💯`);
+                    console.log(`\n💯 Successfully completed Mongoose processing for model: ${updatedModel.name} 💯`);
                     
                 } catch (error) {
-                    console.error(`❌ Error in native background processing for model ${updatedModel.name}:`, error);
+                    console.error(`❌ Error in Mongoose background processing for model ${updatedModel.name}:`, error);
                     // Update model to indicate failure
                     try {
-                        await this.db.collection('models').updateOne(
-                            { _id: new ObjectId(modelId) },
-                            { 
-                                $set: { 
-                                    isComplete: false, 
-                                    error: error instanceof Error ? error.message : 'Unknown error',
-                                    updatedAt: new Date()
-                                } 
-                            }
-                        );
+                        await Model.findByIdAndUpdate(modelId, { 
+                            isComplete: false, 
+                            error: error instanceof Error ? error.message : 'Unknown error'
+                        });
                     } catch (updateError) {
                         console.error('Failed to update model error status:', updateError);
                     }
@@ -480,66 +379,41 @@ class NativeModelService {
 
     async deleteModel({ modelId, deletedModel = true }: { modelId: string, deletedModel: boolean }) {
         try {
-            await this.connect();
-
             console.log(`🗑️ Starting deletion for model ${modelId}`);
 
             // Get all RPMs for this model
-            const allRpms = await this.db.collection("rpms")
-            .find({ modelId: new ObjectId(modelId) })
-            .project({ _id: 1 })
-            .toArray();
-
+            const allRpms = await RPM.find({ modelId }).select('_id');
             console.log(`Found ${allRpms.length} RPMs to delete`);
 
             // Delete points in batches
             if(allRpms.length > 0) {
-                const batchSize = 10;
-                let deletedPromises = [];
+                const batchSize = 50; // Larger batch size for Mongoose
+                const rpmIds = allRpms.map(rpm => rpm._id);
 
-                for (let i = 0; i < allRpms.length; i += batchSize) {
-                    const batch = allRpms.slice(i, i + batchSize);
+                for (let i = 0; i < rpmIds.length; i += batchSize) {
+                    const batch = rpmIds.slice(i, i + batchSize);
                     
-                    // Delete points for this batch of RPMs
-                    const rpmIds = batch.map(rpm => rpm._id);
-                    deletedPromises.push(
-                        this.db.collection("points").deleteMany({ 
-                            rpmId: { $in: rpmIds },
-                            modelId: new ObjectId(modelId)
-                        })
-                    );
-
-                    // Process batch when it reaches batchSize or is the last batch
-                    if (deletedPromises.length >= batchSize || i + batchSize >= allRpms.length) {
-                        try {
-                            const results = await Promise.all(deletedPromises);
-                            const totalDeleted = results.reduce((sum, result) => sum + result.deletedCount, 0);
-                            console.log(`✅ Deleted ${totalDeleted} points for batch ${Math.floor(i/batchSize) + 1}`);
-                        } catch (batchError) {
-                            console.error(`❌ Error deleting points for batch:`, batchError);
-                        }
-                        deletedPromises = [];
+                    try {
+                        const result = await Point.deleteMany({ 
+                            rpmId: { $in: batch },
+                            modelId
+                        });
+                        console.log(`✅ Deleted ${result.deletedCount} points for batch ${Math.floor(i/batchSize) + 1}`);
+                    } catch (batchError) {
+                        console.error(`❌ Error deleting points for batch:`, batchError);
                     }
                 }
             }
 
             // Delete RPMs
-            const rpmResult = await this.db.collection("rpms").deleteMany({ 
-                modelId: new ObjectId(modelId) 
-            }, { 
-                writeConcern: { w: 'majority', j: true } 
-            });
+            const rpmResult = await RPM.deleteMany({ modelId });
             console.log(`✅ Deleted ${rpmResult.deletedCount} RPMs`);
 
             // Delete model if requested
             if(deletedModel) {
-                const modelResult = await this.db.collection("models").deleteOne({ 
-                    _id: new ObjectId(modelId) 
-                }, { 
-                    writeConcern: { w: 'majority', j: true } 
-                });
+                const modelResult = await Model.findByIdAndDelete(modelId);
                 
-                if (modelResult.deletedCount === 0) {
+                if (!modelResult) {
                     throw new ApiError('Model not found', NOT_FOUND);
                 }
                 console.log(`✅ Deleted model ${modelId}`);
@@ -557,12 +431,10 @@ class NativeModelService {
 
     async getAllModels({ type }: { type?: any }) {
         try {
-            await this.connect();
-            
             let query: any = {};
             if (type) query.type = type;
             
-            return await this.db.collection('models').find(query).toArray();
+            return await Model.find(query);
             
         } catch (error) {
             if (error instanceof ApiError) throw error;
