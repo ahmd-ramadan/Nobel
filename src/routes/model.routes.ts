@@ -11,8 +11,8 @@ router.use(
 
 router.route('/')
     .get(
-        asyncHandler(modelCtrl.getAllModels)
-        // asyncHandler(nativeModelCtrl.getAllModels)
+        // asyncHandler(modelCtrl.getAllModels)
+        asyncHandler(nativeModelCtrl.getAllModels)
     )
     .post(
         isAuthorized(manageModel),

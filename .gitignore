@@ -7,3 +7,5 @@ logs
 data
 
 dist
+
+*.old.ts
