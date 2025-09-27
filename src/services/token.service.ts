@@ -57,7 +57,7 @@ class TokenService {
     async deleteExpiredTokens() {
         const now = new Date();
 
-        return this.deleteMany({ expiresAt: { lt: now } });
+        return this.tokenDataSource.deleteMany({ expiresAt: { $lt: now } });
     }
 
     scheduleTokenCleanupTask() {
