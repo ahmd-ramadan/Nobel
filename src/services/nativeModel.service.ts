@@ -319,45 +319,64 @@ class NativeModelService {
                 return { insertedCount: 0 };
             }
             
-            // Use transaction to ensure data consistency
+            // Try to use a transaction if supported; otherwise fall back to non-transactional flow
             const session = this.client.startSession();
-            
             try {
-                await session.withTransaction(async () => {
-                    // Delete existing points
-                    await this.db.collection('points').deleteMany({ 
-                        modelId: new ObjectId(modelId), 
-                        rpmId: new ObjectId(rpmId) 
-                    }, { session });
+                try {
+                    await session.withTransaction(async () => {
+                        // Delete existing points
+                        await this.db.collection('points').deleteMany({ 
+                            rpmId: new ObjectId(rpmId) 
+                        }, { session });
+                        
+                        // Prepare documents for bulk insert
+                        const documents = points.map(point => ({
+                            modelId: new ObjectId(modelId),
+                            rpmId: new ObjectId(rpmId),
+                            ...point
+                        }));
+                        
+                        // Bulk insert all points at once
+                        const result = await this.db.collection('points').insertMany(documents, { 
+                            writeConcern: { w: 'majority', j: true },
+                            session
+                        });
+                        
+                        console.log(`✅ Added ${result.insertedCount} points for RPM ${rpmId} in transaction`);
+                        
+                        return result;
+                    });
+                } catch (txnErr: any) {
+                    // Fallback for standalone MongoDB (no replica set/sharding)
+                    const txnNotSupported = typeof txnErr?.message === 'string' && (
+                        txnErr.message.includes('Transaction numbers are only allowed on a replica set member or mongos') ||
+                        txnErr.message.includes('transactions are not supported')
+                    );
+                    if (!txnNotSupported) throw txnErr;
                     
-                    // Prepare documents for bulk insert
+                    // Non-transactional best-effort: delete then insert
+                    await this.db.collection('points').deleteMany({ 
+                        rpmId: new ObjectId(rpmId) 
+                    });
+                    
                     const documents = points.map(point => ({
                         modelId: new ObjectId(modelId),
                         rpmId: new ObjectId(rpmId),
                         ...point
                     }));
-                    
-                    // Bulk insert all points at once
                     const result = await this.db.collection('points').insertMany(documents, { 
-                        writeConcern: { w: 'majority', j: true },
-                        session
+                        writeConcern: { w: 'majority', j: true }
                     });
-                    
-                    console.log(`✅ Added ${result.insertedCount} points for RPM ${rpmId} in transaction`);
-                    
-                    return result;
-                });
+                    console.log(`✅ Added ${result.insertedCount} points for RPM ${rpmId} without transaction (standalone server)`);
+                }
                 
-                // Verify data was actually inserted after transaction
+                // Verify data was actually inserted after (txn or non-txn)
                 const verifyCount = await this.db.collection('points').countDocuments({ 
                     modelId: new ObjectId(modelId), 
                     rpmId: new ObjectId(rpmId) 
                 });
-                
-                console.log(`✅ Transaction completed. Verified ${verifyCount} points for RPM ${rpmId}`);
-                
+                console.log(`✅ Verified ${verifyCount} points for RPM ${rpmId}`);
                 return { insertedCount: verifyCount };
-                
             } finally {
                 await session.endSession();
             }
@@ -537,12 +556,19 @@ class NativeModelService {
                     // Delete points for this batch of RPMs
                     const result = await this.db.collection("points")
                         .deleteMany({ 
-                            modelId: new ObjectId(modelId),
+                            // modelId: new ObjectId(modelId),
+                            rpmId: { $in: rpmIds }
+                        });
+
+                    const remainingPoints = await this.db.collection("points")
+                        .countDocuments({ 
+                            // modelId: new ObjectId(modelId),
                             rpmId: { $in: rpmIds }
                         });
                     
                     totalDeleted += result.deletedCount;
                     console.log(`Deleted ${totalDeleted} points so far... (RPMs ${i + 1}-${Math.min(i + batchSize, allRpms.length)})`);
+                    console.log(`Remaining points are ${remainingPoints}`);
                     
                     // Small delay to prevent overwhelming the database
                     if (i + batchSize < allRpms.length) {
@@ -552,8 +578,10 @@ class NativeModelService {
                 
                 // Now delete the RPMs
                 await this.db.collection('rpms').deleteMany({ modelId: new ObjectId(modelId) });
+                const remainingRPMS = await this.db.collection('rpms').countDocuments({ modelId: new ObjectId(modelId) });
                 
                 console.log(`✅ Total deleted ${totalDeleted} points and ${allRpms.length} RPMs`);
+                console.log(`✅ Remaining RPMs ${remainingRPMS}`);
             }
     
             // Update model data
