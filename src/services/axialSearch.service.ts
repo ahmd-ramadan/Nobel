@@ -186,7 +186,7 @@ class AxialSearchService {
       const results = await this.db.collection('points').aggregate([
         {
           $match: {
-            rpmId: { $in: rpmsIds }, // => new mongoose.Types.ObjectId(id)) }, 
+            rpmId: { $in: rpmsIds.map(id => new mongoose.Types.ObjectId(id)) }, // => new mongoose.Types.ObjectId(id)) }, 
             flowRate: { $gte: flowRate * 0.9, $lte: flowRate * 1.1 },
             totalPressure: { $gte: targetTotalPressure * 0.9, $lte: targetTotalPressure * 1.1 }
           }
@@ -243,12 +243,14 @@ class AxialSearchService {
 
       console.log(results.length);
       
+      // console.log(rpms)
+
       const bestPoint = results.length ? { ... results[0], dynamicPressure, totalPressure: targetTotalPressure } as any : null;
       if(bestPoint) {
         return await this.generateSearchAxialResponse({ 
           result: bestPoint,
           model: model,
-          rpm: rpms.find(r => r._id.toString() === bestPoint?.rpmId)
+          rpm: rpms.find(r => r._id.toString() === bestPoint?.rpmId.toString())
         })
       } else {
         return null;
@@ -259,6 +261,7 @@ class AxialSearchService {
       // Use native MongoDB driver for aggregation
       await this.connect();
 
+      console.log(result, model, rpm)
       const points = await this.db.collection('points').aggregate([
         {
           $match: {
