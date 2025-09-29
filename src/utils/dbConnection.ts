@@ -43,6 +43,7 @@ export const connectWithDatabase = async () => {
         }
     ).catch(
         (error) => {
+            console.log(`Error occurred while connection with database - ${error} ❌`)
             logger.error(`Error occurred while connection with database - ${error} ❌`)
             process.exit(1)
         }

@@ -2,11 +2,45 @@ import { AxialModelsAndOptionsBasedOnType, AxialOptionsEnum, AxialRPMsBasedOnOpt
 import { Model, Point } from "../models";
 import { ApiError, INTERNAL_SERVER_ERROR } from "../utils";
 import { rpmRepository } from "../repositories";
+import { mongodbUrl } from "../config";
+import { MongoClient, Db, ObjectId } from 'mongodb';
+import mongoose from "mongoose";
 
 class AxialSearchService {
 
-    constructor(){}
-    
+  private client: MongoClient;
+
+  private db!: Db;
+
+  constructor(){
+    this.client = new MongoClient(mongodbUrl, {
+        // Optimized for heavy operations
+        maxPoolSize: 100,
+        minPoolSize: 20,
+        connectTimeoutMS: 60000,
+        socketTimeoutMS: 60000,
+        serverSelectionTimeoutMS: 60000,
+        retryWrites: true,
+        w: 'majority', // Ensure writes are acknowledged by majority
+        journal: true,
+        readConcern: { level: 'majority' }, // Read from majority
+        writeConcern: { w: 'majority', j: true }, // Write with journal
+        readPreference: 'primary' // Always read from primary to avoid stale data
+    });
+  }
+
+  async connect() {
+      if (!this.db) {
+          await this.client.connect();
+          this.db = this.client.db();
+          
+          // Set read preference to primary to avoid stale reads
+          // this.db.readPreference = 'primary'; // This is read-only, handled in connection options
+          
+          console.log('✅ Native MongoDB driver connected');
+      }
+  }
+
     private async forceRefreshConnection() {
         try {
             // Force Mongoose to refresh connection and clear any caches
@@ -141,19 +175,18 @@ class AxialSearchService {
       // console.log("dynamicPressure: ", dynamicPressure, "\ttargetTotalPressure: ", targetTotalPressure, "\tdiameter: ", diameter, "\n", model)
       
       // Use native MongoDB driver for aggregation
-      const mongoose = require('mongoose');
-      const db = mongoose.connection.db;
+      await this.connect();
       
       // Debug: Check if points exist for this RPM
-      const debugCount = await db.collection('points').countDocuments({ 
+      const debugCount = await this.db.collection('points').countDocuments({ 
         rpmId: { $in: rpmsIds.map(id => new mongoose.Types.ObjectId(id)) } 
       });
       console.log(`🔍 Debug: Found ${debugCount} points for RPMs: ${rpmsIds.slice(0, 3).join(', ')}...`);
       
-      const results = await db.collection('points').aggregate([
+      const results = await this.db.collection('points').aggregate([
         {
           $match: {
-            rpmId: { $in: rpmsIds.map(id => new mongoose.Types.ObjectId(id)) }, 
+            rpmId: { $in: rpmsIds }, // => new mongoose.Types.ObjectId(id)) }, 
             flowRate: { $gte: flowRate * 0.9, $lte: flowRate * 1.1 },
             totalPressure: { $gte: targetTotalPressure * 0.9, $lte: targetTotalPressure * 1.1 }
           }
@@ -210,12 +243,12 @@ class AxialSearchService {
 
       console.log(results.length);
       
-      const bestPoint = results.length ? { ... results[0], dynamicPressure, totalPressure: targetTotalPressure } : null;
+      const bestPoint = results.length ? { ... results[0], dynamicPressure, totalPressure: targetTotalPressure } as any : null;
       if(bestPoint) {
         return await this.generateSearchAxialResponse({ 
           result: bestPoint,
           model: model,
-          rpm: rpms.find(r => r._id.toString() === bestPoint.rpmId)
+          rpm: rpms.find(r => r._id.toString() === bestPoint?.rpmId)
         })
       } else {
         return null;
@@ -224,13 +257,12 @@ class AxialSearchService {
     }
     private async generateSearchAxialResponse({ result, model, rpm }: { result: any, model: IModelModel, rpm: any }): Promise<ISearchResult> {
       // Use native MongoDB driver for aggregation
-      const mongoose = require('mongoose');
-      const db = mongoose.connection.db;
-      
-      const points = await db.collection('points').aggregate([
+      await this.connect();
+
+      const points = await this.db.collection('points').aggregate([
         {
           $match: {
-            rpmId: new mongoose.Types.ObjectId(rpm.id)
+            rpmId: rpm._id
           }
         },
         { 
@@ -244,7 +276,7 @@ class AxialSearchService {
       ], {
         readConcern: { level: 'majority' },
         allowDiskUse: true
-      }).toArray();
+      }).toArray() as any;
       
     
       // console.log(points.length);
