@@ -1,4 +1,4 @@
-import { ModelTypesEnum } from "./model.interface";
+import { CentrifugalTypesEnum, ConfigurationTypesEnum, ModelTypesEnum, PressureTypesEnum } from "./model.interface";
 import { IPointModel } from "./point.interface";
 
 export interface ISearchInput {
@@ -9,6 +9,10 @@ export interface ISearchInput {
     modelType: ModelTypesEnum,
     axialType?: AxialTypesEnum,
     axialOption?: AxialOptionsEnum
+
+    pressureType?: PressureTypesEnum;
+    configurationType?: ConfigurationTypesEnum;
+    centrifugalType?: CentrifugalTypesEnum;
 }
 
 export enum FlowRateUnitsEnum {
@@ -66,7 +70,7 @@ export interface ISearchResult {
         rpm: number
     },
     closestPoint: IClosestPoint,
-    points: IPointWithPower[]
+    // points: IPointWithPower[]
     
 } 
 

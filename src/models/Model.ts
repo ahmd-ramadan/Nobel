@@ -1,5 +1,5 @@
 import { Schema, model } from 'mongoose';
-import { IModel, ModelTypesEnum } from '../interfaces';
+import { CentrifugalTypesEnum, ConfigurationTypesEnum, IModel, ModelTypesEnum, PressureTypesEnum } from '../interfaces';
 
 const modelSchema = new Schema({
     type: {
@@ -56,6 +56,22 @@ const modelSchema = new Schema({
         type: Boolean,
         required: true,
         default: false
+    },
+
+    pressureType: {
+        type: String,
+        enum: Object.values(PressureTypesEnum),
+        required: true,
+    },
+    configurationType: {
+        type: String,
+        enum: Object.values(ConfigurationTypesEnum),
+        required: false
+    },
+    centrifugalType: {
+        type: String,
+        enum: Object.values(CentrifugalTypesEnum),
+        required: true
     }
 }, {
     timestamps: true,

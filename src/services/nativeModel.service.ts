@@ -1,5 +1,5 @@
 import { MongoClient, Db, ObjectId } from 'mongodb';
-import { ICreateModelData, ICreatePointsData, IModel, IModelModel, IPointData } from "../interfaces";
+import { ICreateModelData, ICreatePointsData, IModel, IPointData, ModelTypesEnum } from "../interfaces";
 import { ApiError, CONFLICT, INTERNAL_SERVER_ERROR, NOT_FOUND, } from "../utils";
 import { calculateDiameter, calculateFirstRpm, handleGenerateNextRpm } from "../utils/points.utils";
 import { mongodbUrl } from "../config";
@@ -46,9 +46,22 @@ class NativeModelService {
         }
     }
 
-    async isModelExistsByName(modelName: string) {
+    async isModelExist(data: Partial<ICreateModelData> ) {
         await this.connect();
-        return await this.db.collection('models').findOne({ name: modelName }, { 
+
+        let query: any = { 
+            name: data?.name,
+            type: data?.type 
+        };
+        if(query.type === ModelTypesEnum.CENTRIFUGAL) {
+            query = { 
+                ... query,
+                pressureTypes: data?.pressureType,
+                centrifugalType: data.centrifugalType
+            }
+            if(data.configurationType) query.configurationType = data.configurationType;
+        }
+        return await this.db.collection('models').findOne(query, { 
             readConcern: { level: 'majority' } 
         });
     }
@@ -58,7 +71,7 @@ class NativeModelService {
             await this.connect();
             
             // Check if model exists using native driver
-            const isModelExist = await this.isModelExistsByName(data.name);
+            const isModelExist = await this.isModelExist(data);
             if (isModelExist) {
                 throw new ApiError(ValidationErrorMessages.MODEL_EXIST, CONFLICT)
             }
@@ -288,8 +301,9 @@ class NativeModelService {
             });
             const firstRpm = { _id: firstRpmResult.insertedId, modelId, rpm: startRpmNumber };
             
-            // Generate first rpm points
-            const firstRpmPoints = calculateFirstRpm(points, startRpmNumber, diameter);
+            // Generate first rpm points (use quartic for centrifugal)
+            const pressureModel = (model as any)?.type === 'centrifugal' ? 'quartic' : 'quadratic';
+            const firstRpmPoints = calculateFirstRpm(points, startRpmNumber, diameter, pressureModel as any);
 
             const result = await this.addAllPointsForRpm({ 
                 modelId, 
@@ -524,15 +538,12 @@ class NativeModelService {
             }
     
             // Check duplicate name if updating name
-            if (data.name) {
-                const existingModel = await this.db.collection('models').findOne({ 
-                    name: data.name, 
-                    _id: { $ne: new ObjectId(modelId) } 
-                });
-                if (existingModel) {
-                    throw new ApiError('Model name already exists', CONFLICT);
-                }
+            const newData = { ... isModelExist, ... data };
+            const existingModel = await this.isModelExist(newData);
+            if (existingModel) {
+                throw new ApiError('Model name already exists', CONFLICT);
             }
+    
     
             const isUpdatedPoints = !(Object.keys(data).length === 1 && data?.name);
     
@@ -617,8 +628,6 @@ class NativeModelService {
             throw new ApiError('Updated model failed', INTERNAL_SERVER_ERROR);
         }
     }
-    
-
     async deleteModel({ modelId, deletedModel = true }: { modelId: string, deletedModel: boolean }) {
         try {
             await this.connect();
@@ -695,7 +704,6 @@ class NativeModelService {
             throw new ApiError(ValidationErrorMessages.DELETE_MODEL_FAILED, INTERNAL_SERVER_ERROR);
         }
     }
-
     async getAllModels({ type }: { type?: any }) {
         try {
             await this.connect();

@@ -8,6 +8,10 @@ export interface ICoffes {
     c: number
 }
 
+type PressureModel = 'quadratic' | 'quartic';
+
+
+
 export const generateInterpolatedEfficiency = (index: number, validPoints: IModelPoint[]) => {
     // Default efficiency values in case we don't have enough input data
     const defaultEfficiencies = [65, 70, 72, 70, 63];
@@ -123,9 +127,70 @@ export const calculateDiameter = (model: number) => {
     }
 };
 
+// ===== Quartic helpers at module scope =====
+const solveLinearSystem5x5 = (A: number[][], b: number[]) => {
+    const n = 5;
+    const M = A.map((row, i) => [...row, b[i]]);
+    for (let col = 0; col < n; col++) {
+        let pivotRow = col;
+        for (let r = col + 1; r < n; r++) {
+            if (Math.abs(M[r][col]) > Math.abs(M[pivotRow][col])) pivotRow = r;
+        }
+        if (Math.abs(M[pivotRow][col]) < 1e-12) return null as any;
+        if (pivotRow !== col) {
+            const tmp = M[col];
+            M[col] = M[pivotRow];
+            M[pivotRow] = tmp;
+        }
+        const pivot = M[col][col];
+        for (let c = col; c <= n; c++) M[col][c] /= pivot;
+        for (let r = 0; r < n; r++) {
+            if (r === col) continue;
+            const factor = M[r][col];
+            for (let c = col; c <= n; c++) {
+                M[r][c] -= factor * M[col][c];
+            }
+        }
+    }
+    return M.map(row => row[n]);
+};
+
+export const calculateQuarticCoefficients = (points: IModelPoint[]) => {
+    try {
+        const xs = points.map(p => p.flowRate);
+        const ys = points.map(p => p.totalPressure);
+        if (xs.some(x => isNaN(x)) || ys.some(y => isNaN(y)) || points.length < 5) return null;
+        const A = xs.map(x => [
+            Math.pow(x, 4),
+            Math.pow(x, 3),
+            Math.pow(x, 2),
+            x,
+            1
+        ]);
+        const solution = solveLinearSystem5x5(A, ys);
+        if (!solution) return null;
+        const [a, b, c, d, e] = solution as number[];
+        return { a, b, c, d, e } as any;
+    } catch (err) {
+        console.error('Error calculating quartic coefficients:', err);
+        return null;
+    }
+};
+
+export const evaluateQuartic = (coeffs: any, x: number) => {
+    if (!coeffs) return 0;
+    const { a, b, c, d, e } = coeffs;
+    return (a * x * x * x * x) + (b * x * x * x) + (c * x * x) + (d * x) + e;
+};
+
 // ===== POINT GENERATION FUNCTIONS =====
 // # Generate 1000 points
-export const generatePoints = (coeffs: ICoffes, basePoints: IModelPoint[], diameter: number) => {
+export const generatePoints = (
+    coeffs: any,
+    basePoints: IModelPoint[],
+    diameter: number,
+    pressureModel: PressureModel = 'quadratic'
+) => {
     const validPoints = basePoints.filter(point => 
         point.flowRate && point.totalPressure && point.efficiency
     );
@@ -176,10 +241,12 @@ export const generatePoints = (coeffs: ICoffes, basePoints: IModelPoint[], diame
     };
 
     const calculatePressure = (flowRate: number) => {
-        const totalPressure = (coeffs.a * flowRate * flowRate) + 
-                            (coeffs.b * flowRate) + 
-                            coeffs.c;
-
+        let totalPressure: number;
+        if (pressureModel === 'quartic' && coeffs && typeof coeffs === 'object' && Number.isFinite(coeffs.a)) {
+            totalPressure = evaluateQuartic(coeffs, flowRate);
+        } else {
+            totalPressure = (coeffs.a * flowRate * flowRate) + (coeffs.b * flowRate) + coeffs.c;
+        }
         return Number(totalPressure.toFixed(6));
     };
 
@@ -389,6 +456,10 @@ export const generatePoints = (coeffs: ICoffes, basePoints: IModelPoint[], diame
         const velocity = VELOCITY_CONSTANT * flowRate;
         const brakePower = calculateBrakePower(flowRate, totalPressure, efficiency);
         const lpaValue = evaluateCubic(cubicCoeffsLpa, flowRate);
+
+        const V = (flowRate / ((Math.PI / 4) * (diameter * diameter)))
+        const dynamicPressure = 0.5 * 1.2 * (V * V);
+        const staticPressure = totalPressure - dynamicPressure;
         
         generatedPoints.push({
             flowRate: flowRate,
@@ -396,7 +467,8 @@ export const generatePoints = (coeffs: ICoffes, basePoints: IModelPoint[], diame
             velocity: velocity,
             efficiency: efficiency,
             brakePower: brakePower,
-            lpa: Number(lpaValue ?? 0)
+            lpa: Number(lpaValue ?? 0),
+            staticPressure,
         });
     }
 
@@ -430,14 +502,28 @@ export const generateNextRpmPoints = (basePoints: IPointData[], currentRpm: numb
         
         // Calculate LPA using provided relation with base RPM
         const lpa = z + lpaDelta;
+
+        const V = (flowRate / ((Math.PI / 4) * (diameter * diameter)))
+        const dynamicPressure = 0.5 * 1.2 * (V * V);
+        const staticPressure = totalPressure - dynamicPressure;
         
         newPoints.push({
-            flowRate: Number(flowRate),
-            totalPressure: Number(totalPressure),
-            velocity: Number(velocity),
-            efficiency: Number(efficiency),
-            brakePower: Number(brakePower),
-            lpa: Number(lpa)
+            // flowRate: Number(flowRate),
+            // totalPressure: Number(totalPressure),
+            // velocity: Number(velocity),
+            // efficiency: Number(efficiency),
+            // brakePower: Number(brakePower),
+            // lpa: Number(lpa),
+            // staticPressure: Number(staticPressure),
+
+            flowRate,
+            totalPressure,
+            velocity,
+            efficiency,
+            brakePower,
+            lpa,
+            staticPressure,
+            
         });
     }
 
@@ -446,32 +532,33 @@ export const generateNextRpmPoints = (basePoints: IPointData[], currentRpm: numb
 
 // ===== EVENT HANDLERS =====
 // # First Rpm Points
-export const calculateFirstRpm = (dataPoints: IModelPoint[], startRpmNumber: number, diameter: number) => {
+export const calculateFirstRpm = (
+    dataPoints: IModelPoint[],
+    startRpmNumber: number,
+    diameter: number,
+    pressureModel: PressureModel = 'quadratic'
+) => {
     
     const validPoints = dataPoints.filter(point => 
         point.flowRate && point.totalPressure
     );
     
     if (validPoints.length >= 2) {
-    
-        // Calculate coefficients automatically using points 1, 3, and 5
-        const coeffs = calculateQuadraticCoefficients(dataPoints);
-    
-        // // Display Quadratic Equation in console
-        // console.log('Quadratic Equation:');
-        // console.log(`y = ${coeffs.a.toFixed(2)}x² + ${coeffs.b.toFixed(2)}x + ${coeffs.c.toFixed(2)}`);
-        // console.log('Where:');
-        // console.log('y = Total Pressure');
-        // console.log('x = Flow Rate');
-        // console.log('\nPoints used for calculation:');
-        // console.log(`Point 1: (${dataPoints[0].flowRate}, ${dataPoints[0].totalPressure})`);
-        // console.log(`Point 3: (${dataPoints[2].flowRate}, ${dataPoints[2].totalPressure})`);
-        // console.log(`Point 5: (${dataPoints[4].flowRate}, ${dataPoints[4].totalPressure})`);
-    
-        const points = generatePoints(coeffs, dataPoints, diameter);
-
-        // const currentRpm = validPoints[0].rpm || startRpmNumber;
-        
+        let coeffs: any;
+        let modelToUse: PressureModel = pressureModel;
+        if (pressureModel === 'quartic') {
+            if (dataPoints.length < 5) {
+                throw new ApiError('Centrifugal requires 5 valid data points for quartic fit.', INTERNAL_SERVER_ERROR);
+            }
+            coeffs = calculateQuarticCoefficients(dataPoints);
+            if (!coeffs) {
+                throw new ApiError('Failed to compute quartic coefficients from provided points.', INTERNAL_SERVER_ERROR);
+            }
+        } else {
+            coeffs = calculateQuadraticCoefficients(dataPoints);
+            modelToUse = 'quadratic';
+        }
+        const points = generatePoints(coeffs, dataPoints, diameter, modelToUse);
         return points;
     } else {
         throw new ApiError('Please enter at least 2 valid data points with flowRate and totalPressure values.', INTERNAL_SERVER_ERROR);
@@ -492,10 +579,6 @@ export const handleGenerateNextRpm = (calculatedPoints: IPointData[], currentRpm
 
     if (targetRpm <= currentRpm) {
         throw new ApiError('Please enter an RPM value greater than the current RPM: ' + currentRpm, INTERNAL_SERVER_ERROR);
-    }
-
-    if (targetRpm < 250 || targetRpm > 3750) {
-        throw new ApiError('RPM must be between 250 and 3750.', INTERNAL_SERVER_ERROR);
     }
 
     return generateNextRpmPoints(calculatedPoints, currentRpm, nextRpm, diameter);

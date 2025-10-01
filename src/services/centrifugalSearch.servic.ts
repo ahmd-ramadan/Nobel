@@ -1,26 +1,25 @@
-import { AxialModelsAndOptionsBasedOnType, AxialOptionsEnum, AxialTypesEnum, IRPM, ISearchInput, ISearchResult, ModelTypesEnum } from "../interfaces";
+import {AxialOptionsEnum, CentrifugalTypesEnum, ConfigurationTypesEnum, IRPM, ISearchInput, ISearchResult, ModelTypesEnum, PressureTypesEnum } from "../interfaces";
 import { Model } from "../models";
 import { ApiError, INTERNAL_SERVER_ERROR } from "../utils";
 import { searchService } from "./search.service";
+class CentrifugalSearchService { 
+  
+    constructor() {}
 
-class AxialSearchService {
-
-  constructor(){}
-    
     /* Steps
-        1. get all models in axialModelType
-        2. get all rpms in axialModelOption
+        1. get all models in centrifugalModelType
+        2. get all rpms in centrifugalModelOption
         3. get all rpms for model
         4. get best point for each model and retuened data use promise to make it sequantily
     */ 
-    async axialSearch(searchInputs: ISearchInput): Promise<ISearchResult[]> {
+    async centrifugalSearch(searchInputs: ISearchInput): Promise<ISearchResult[]> {
         try {
-            const { staticPressure, flowRate, axialOption, axialType } = searchInputs;
+            const { staticPressure, flowRate, axialOption, centrifugalType, configurationType, pressureType } = searchInputs;
             
             // Force refresh connection to get latest data
             await searchService.forceRefreshConnection();
             
-            const models: any[] = await this.fetchModelsByType({ axialType: axialType as AxialTypesEnum});
+            const models: any[] = await this.fetchModelsByTypes({ centrifugalType: centrifugalType!, configurationType, pressureType: pressureType! });
             // const modelsIds: string[] = models.map(m => m._id.toString());
 
             const rpms: IRPM[] = await searchService.fetchRpmsByOptionAndModels({ axialOption: axialOption as AxialOptionsEnum, modelsIds: [] });
@@ -61,30 +60,30 @@ class AxialSearchService {
           } catch(err) {
             console.log(err);
             if(err instanceof ApiError) throw err;
-            throw new ApiError('axial فشل عملية البحث', INTERNAL_SERVER_ERROR) 
+            throw new ApiError('centrifugal فشل عملية البحث', INTERNAL_SERVER_ERROR) 
         }
     }
 
-    private async fetchModelsByType({ axialType }: { axialType: AxialTypesEnum }) {
+    async fetchModelsByTypes({ centrifugalType, configurationType, pressureType }: { centrifugalType: CentrifugalTypesEnum, configurationType?: ConfigurationTypesEnum, pressureType: PressureTypesEnum }) {
         try {
-            const modelsTypeRange = AxialModelsAndOptionsBasedOnType[axialType].split('-');
-            const startModel = parseInt(modelsTypeRange[0]);
-            const endModel = parseInt(modelsTypeRange[1]);
+            const modelsTypesQuery: any = { 
+                type: ModelTypesEnum.CENTRIFUGAL,
+                centrifugalType, 
+                pressureType 
+            };
+            if(configurationType) modelsTypesQuery.configurationType = configurationType;
             
-            // console.log(modelsTypeRange, startModel, endModel);
-            const models = await Model.find({
-                type: ModelTypesEnum.AXIAL,
-                factor: { $gte: startModel, $lte: endModel }
-            }).lean() // Use lean() to bypass Mongoose caching
+            // console.log(centrifugalType, configurationType, pressureType);
+            const models = await Model.find(modelsTypesQuery).lean()
             
             return models;
         } catch(err) {
             console.log(err);
             if(err instanceof ApiError) throw err;
-            throw new ApiError('axial فشل عملية البحث', INTERNAL_SERVER_ERROR) 
+            throw new ApiError('centrifugal فشل عملية البحث', INTERNAL_SERVER_ERROR) 
         }
     }
 }
 
-export const axialSearchService = new AxialSearchService()
+export const centrifugalSearchService = new CentrifugalSearchService()
 

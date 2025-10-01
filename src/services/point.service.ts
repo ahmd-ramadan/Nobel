@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { ICreatePointsData, IRPM } from "../interfaces";
 import { Point } from "../models";
 import { pointRepository } from "../repositories";
@@ -95,7 +96,7 @@ class PointService {
         return await Point.aggregate([
             {
               $match: {
-                rpmId: rpmId
+                rpmId: new mongoose.Types.ObjectId(rpmId)
               }
             },
             { 

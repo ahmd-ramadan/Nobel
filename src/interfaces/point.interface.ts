@@ -8,7 +8,8 @@ export interface IPointModel extends IDBModel {
     velocity: number,
     brakePower: number,
     efficiency: number,
-    lpa: number
+    lpa: number,
+    staticPressure: number;
 }
 
 export interface IPoint extends IPointModel {}
@@ -21,7 +22,8 @@ export interface ICreatePointData {
     velocity: number,
     brakePower: number,
     efficiency: number,
-    lpa: number
+    lpa: number,
+    staticPressure: number;
 }
 
 export interface IPointData {
@@ -30,7 +32,8 @@ export interface IPointData {
     velocity: number,
     brakePower: number,
     efficiency: number,
-    lpa: number
+    lpa: number,
+    staticPressure: number;
 }
 
 export interface ICreatePointsData {
